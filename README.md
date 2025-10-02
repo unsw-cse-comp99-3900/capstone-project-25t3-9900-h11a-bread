@@ -1,24 +1,46 @@
-## 🚀 Quick Start
+# SystemX - Full Stack Application
 
-### Development (with hot reloading):
+SystemX is a Fast Accent Translator full-stack application with React frontend and backend API, fully containerized with Docker.
+
+## Project Structure
+
+```
+systemx/
+├── frontend/          # React + TypeScript + Vite frontend
+│   ├── src/          # React components and logic
+│   ├── public/       # Static assets
+│   ├── Dockerfile    # Production Docker image
+│   └── docker-compose.yml # Docker orchestration
+├── backend/          # Backend API (to be implemented)
+└── README.md         # This file
+```
+
+## Quick Start
+
+### Frontend Development (with hot reloading):
+
 ```bash
-cd systemx  # or wherever you placed the project
+cd frontend
 docker-compose up systemx-dev
 ```
+
 Access at: `http://localhost:3000`
 
-### Production:
+### Frontend Production:
+
 ```bash
-cd systemx
+cd frontend
 docker-compose --profile production up systemx-prod
 ```
+
 Access at: `http://localhost:8080`
 
-## Detailed Setup
+## Frontend Development
 
 ### Local Development (without Docker)
 
 ```bash
+cd frontend
 npm install
 npm run dev
 ```
@@ -28,6 +50,7 @@ npm run dev
 For development with hot reloading:
 
 ```bash
+cd frontend
 # Start development server with Docker
 docker-compose up systemx-dev
 
@@ -55,6 +78,8 @@ The production server will be available at `http://localhost:8080`
 
 ## Docker Commands
 
+_All commands should be run from the `frontend/` directory_
+
 ### Development
 
 - `docker-compose up systemx-dev` - Start development server with hot reloading
@@ -78,6 +103,8 @@ docker run -p 8080:80 systemx:prod
 ```
 
 ## Available Scripts
+
+_Run these commands from the `frontend/` directory_
 
 - `npm run dev` - Start development server
 - `npm run build` - Build for production
