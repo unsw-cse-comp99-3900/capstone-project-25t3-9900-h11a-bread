@@ -1,6 +1,6 @@
 # Speech Processing Backend
 
-FastAPI-based backend providing real-time speech processing APIs, including denoising and future ASR/VAD/TTS extensions.  
+FastAPI-based backend providing real-time speech processing APIs, including denoising and future VAD/ASR/TTS extensions.  
 Fully containerized for both development and production environments.
 
 ## 1. Features
@@ -17,8 +17,8 @@ Fully containerized for both development and production environments.
 
 | Module                                 | Description                   | Status      |
 | -------------------------------------- | ----------------------------- |-------------|
-| **ASR (Automatic Speech Recognition)** | Speech-to-text pipeline       | Implemented |
-| **VAD (Voice Activity Detection)**     | Detect speech/silence regions | Pending     |
+| **VAD (Voice Activity Detection)**     | Detect speech/silence regions | Implemented |
+| **ASR (Automatic Speech Recognition)** | Speech-to-text pipeline       | Pending     |
 | **TTS (Text-to-Speech)**               | Convert text to voice output  | Pending     |
 
 ## 3. Quick Start
@@ -43,25 +43,25 @@ docker compose --profile production down - Stop production backend
 
 | Type | Method | #Endpoint      | Description                              |
 |------|--------|----------------|------------------------------------------|
-| ASR  | GET    | /health        | Check service status                     |
-| ASR  | POST   | /denoise/frame | Denoise a single Float32 PCM frame       |
-| ASR  | WS     | /ws/denoise    | Real-time bidirectional denoising stream |
+| VAD  | GET    | /health        | Check service status                     |
+| VAD  | POST   | /denoise/frame | Denoise a single Float32 PCM frame       |
+| VAD  | WS     | /ws/denoise    | Real-time bidirectional denoising stream |
 
 ## 4. Project Structure
 
 ```bash
 backend/
 │
-├── ASR/                            # Automatic Speech Recognition module (已完成)
+├── ASR/                            # Automatic Speech Recognition 
+│   └── (placeholder)               # Future integration: silence detection, speech segmentation
+│
+├── TTS/                            # Text-to-Speech module 
+│   └── (placeholder)               # Future integration: speech synthesis, voice cloning
+│
+├── VAD/                            # Voice Activity Detection 
 │   ├── app.py                      # FastAPI main entry for real-time denoise/ASR service
 │   ├── client.py                   # WebSocket test client for real-time audio stream
 │   └── getTestData.py              # Synthetic test data generator for unit testing
-│
-├── TTS/                            # Text-to-Speech module (待开发)
-│   └── (placeholder)               # Future integration: speech synthesis, voice cloning
-│
-├── VAD/                            # Voice Activity Detection module (待开发)
-│   └── (placeholder)               # Future integration: silence detection, speech segmentation
 │
 ├── docker-compose.yml              # Defines dev/prod services, ports, and environment mapping
 ├── Dockerfile                      # Production build (optimized image)
