@@ -11,8 +11,9 @@ services:
       - .:/app
     environment:
       - PYTHONUNBUFFERED=1
+      - SPEECHMATICS_API_KEY=7lLJUFdbyFvzNODMyb1MLr49amx6CyYy
     restart: always
-    command: uvicorn app:app --reload --host 0.0.0.0 --port 8000
+    command: uvicorn VAD.app:app --reload --host 0.0.0.0 --port 8000
 
   backend-prod:
     build:
@@ -21,5 +22,8 @@ services:
     container_name: denoise-backend-prod
     ports:
       - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - SPEECHMATICS_API_KEY=7lLJUFdbyFvzNODMyb1MLr49amx6CyYy
     restart: always
     profiles: ["production"]
