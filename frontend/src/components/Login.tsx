@@ -1,21 +1,44 @@
-import React from "react";
-import { Link } from "react-router-dom";
+import React, { useState } from "react";
+import { FcGoogle } from "react-icons/fc";
+import { signInWithPopup } from "firebase/auth";
+import { auth, provider } from "../firebase/firebase";
 import loginPicture from "../assets/login-picture.png";
 
 const Login: React.FC = () => {
-  const handleGoogleSignIn = () => {
-    // TODO: Implement Google Sign-In
-    console.log("Google Sign-In clicked");
-  };
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleFacebookSignIn = () => {
-    // TODO: Implement Facebook Sign-In
-    console.log("Facebook Sign-In clicked");
+  const handleGoogleSignIn = async () => {
+    setIsLoading(true);
+    try {
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+
+      console.log("User signed in:", user.displayName, user.email);
+
+      // Store user info in localStorage (optional)
+      localStorage.setItem(
+        "user",
+        JSON.stringify({
+          uid: user.uid,
+          displayName: user.displayName,
+          email: user.email,
+          photoURL: user.photoURL,
+        })
+      );
+
+      // Redirect to home page or dashboard
+      window.location.href = "/";
+    } catch (error: any) {
+      console.error("Error signing in with Google:", error);
+      alert("Failed to sign in with Google. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleUseWithoutSignIn = () => {
-    // TODO: Implement use without signing in
-    console.log("Use without signing in clicked");
+    // Redirect to home
+    window.location.href = "/";
   };
 
   return (
@@ -27,16 +50,15 @@ const Login: React.FC = () => {
           </h1>
 
           <button
-            className="w-full p-4 mb-4 border border-gray-300 rounded-xl bg-white text-gray-700 font-medium flex items-center gap-4"
+            className="w-full p-4 mb-5 border border-gray-300 rounded-xl bg-white text-gray-700 font-medium flex items-center gap-4 disabled:opacity-50 disabled:cursor-not-allowed"
             onClick={handleGoogleSignIn}
+            disabled={isLoading}
           >
-            <div className="flex items-center justify-center w-6 h-6 bg-white rounded-full">
-              <span className="font-bold text-blue-500 text-lg">G</span>
-            </div>
-            Sign in with Google
+            <FcGoogle className="w-6 h-6" />
+            {isLoading ? "Signing in..." : "Sign in with Google"}
           </button>
 
-          <button
+          {/* <button
             className="w-full p-4 mb-4 border border-blue-600 rounded-xl bg-blue-600 text-white font-medium flex items-center gap-4"
             onClick={handleFacebookSignIn}
           >
@@ -44,23 +66,29 @@ const Login: React.FC = () => {
               <span className="font-bold text-white text-sm">f</span>
             </div>
             Sign in with Facebook
-          </button>
+          </button> */}
 
-          <button
-            className="
+          <div
+            className="text-right
+              w-full"
+          >
+            <button
+              className="
               bg-transparent! 
               text-blue-400 
-              underline 
+              underline
+              
             "
-            onClick={handleUseWithoutSignIn}
-          >
-            Use Without Signing In
-          </button>
+              onClick={handleUseWithoutSignIn}
+            >
+              Use Without Signing In
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Right side - Illustration */}
-      <div className="flex flex-1 items-center justify-center bg-gradient-to-br from-indigo-600 to-purple-700 relative overflow-hidden min-h-[300px] md:min-h-screen">
+      <div className="flex flex-1 items-center justify-center bg-[#77A4F7] relative overflow-hidden min-h-[300px] md:min-h-screen">
         <div className="flex items-center justify-center w-full h-full relative">
           <img
             src={loginPicture}
