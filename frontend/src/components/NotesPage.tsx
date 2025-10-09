@@ -25,7 +25,7 @@ function generateFakeNotes(): Note[] {
       name: "Note",
       createdAt: date,
       durationSec: 115,
-      transcript: `SpeakerA: Today we are going to talk about communication in our daily lives, and not just the simple exchange of words, but the deeper meaning behind how we connect with each other...\n\nSpeakerB: Think about a time when you felt completely understood—what made that moment work so well?\n\nSpeakerA: On the other hand, remember a time when communication broke down—what was missing?`,
+      transcript: `SpeakerA: Today we are going to talk about communication in our daily lives, and not just the simple exchange of words, but the deeper meaning behind how we connect with each other...\n\nSpeakerB: Think about a time when you felt completely understood—what made that moment work so well?\n\nSpeakerA: On the other hand, remember a time when communication broke down—what was missing?SpeakerA: Today we are going to talk about communication in our daily lives, and not just the simple exchange of words, but the deeper meaning behind how we connect with each other...\n\nSpeakerB: Think about a time when you felt completely understood—what made that moment work so well?\n\nSpeakerA: On the other hand, remember a time when communication broke down—what was missing?SpeakerA: Today we are going to talk about communication in our daily lives, and not just the simple exchange of words, but the deeper meaning behind how we connect with each other...\n\nSpeakerB: Think about a time when you felt completely understood—what made that moment work so well?\n\nSpeakerA: On the other hand, remember a time when communication broke down—what was missing?SpeakerA: Today we are going to talk about communication in our daily lives, and not just the simple exchange of words, but the deeper meaning behind how we connect with each other...\n\nSpeakerB: Think about a time when you felt completely understood—what made that moment work so well?\n\nSpeakerA: On the other hand, remember a time when communication broke down—what was missing?`,
     });
   }
   return notes;
@@ -73,7 +73,7 @@ const NoteDetail: React.FC<{ note: Note; onBack: () => void }> = ({
 }) => {
   return (
     <div className="bg-gray-100 h-screen flex flex-col overflow-hidden">
-      <main className="flex-1 px-8 py-6 flex justify-center">
+      <main className="flex-1 px-8 py-6 flex justify-center items-center">
         <div className="w-full max-w-3xl">
           <button
             onClick={onBack}
@@ -101,7 +101,11 @@ const NoteDetail: React.FC<{ note: Note; onBack: () => void }> = ({
               {format(note.createdAt, "h:mma, MMM d, yyyy").toLowerCase()}
             </p>
 
-            <div className="text-gray-800 text-[15px] leading-relaxed whitespace-pre-line border-l-2 border-blue-100 pl-4 max-h-[70vh] overflow-y-auto">
+            <div
+              className="text-gray-800 text-[15px] leading-relaxed whitespace-pre-line 
+             
+             max-h-[70vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 h-[415px] my-5"
+            >
               {note.transcript}
             </div>
           </div>
@@ -142,7 +146,7 @@ const NotesPage: React.FC = () => {
 
   return (
     <div className="bg-gray-100 h-screen flex flex-col overflow-hidden">
-      <main className="flex-1 flex justify-center px-8 py-6">
+      <main className="flex-1 flex justify-center px-8 py-6 items-center">
         <div className="w-full max-w-3xl">
           <h2 className="text-lg font-medium text-gray-700 mb-5 h-8">
             Welcome, Johnny
@@ -171,7 +175,16 @@ const NotesPage: React.FC = () => {
                             {formatDuration(note.durationSec)}
                           </div>
                         </div>
-                        <Download className="w-3.5 h-3.5 text-gray-400" />
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            downloadTranscript(note);
+                          }}
+                          className="ml-2 hover:scale-110 transition"
+                          title="Download transcript"
+                        >
+                          <Download className="w-4 h-4 text-gray-400" />
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -182,7 +195,7 @@ const NotesPage: React.FC = () => {
             {/* Pagination */}
             <div className="flex justify-center items-center gap-4 mt-8">
               <button
-                className="px-3 py-1 rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300 disabled:opacity-40 text-sm"
+                className="px-3 py-1 rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300 disabled:opacity-40 text-xs"
                 disabled={currentPage === 1}
                 onClick={() => setCurrentPage((p) => p - 1)}
               >
@@ -192,7 +205,7 @@ const NotesPage: React.FC = () => {
                 Page {currentPage} of {totalPages}
               </span>
               <button
-                className="px-3 py-1 rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300 disabled:opacity-40 text-sm"
+                className="px-3 py-1 rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300 disabled:opacity-40 text-xs"
                 disabled={currentPage === totalPages}
                 onClick={() => setCurrentPage((p) => p + 1)}
               >

@@ -1,11 +1,20 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { FcGoogle } from "react-icons/fc";
 import { signInWithPopup } from "firebase/auth";
 import { auth, provider } from "../firebase/firebase";
+import { isUserLoggedIn } from "../utils/auth";
 import loginPicture from "../assets/login-picture.png";
 
 const Login: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (isUserLoggedIn()) {
+      navigate("/");
+    }
+  }, [navigate]);
 
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
@@ -27,7 +36,7 @@ const Login: React.FC = () => {
       );
 
       // Redirect to home page or dashboard
-      window.location.href = "/";
+      navigate("/");
     } catch (error: any) {
       console.error("Error signing in with Google:", error);
       alert("Failed to sign in with Google. Please try again.");
@@ -38,7 +47,7 @@ const Login: React.FC = () => {
 
   const handleUseWithoutSignIn = () => {
     // Redirect to home
-    window.location.href = "/";
+    navigate("/");
   };
 
   return (
