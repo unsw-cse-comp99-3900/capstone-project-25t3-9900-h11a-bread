@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { isUserLoggedIn, getCurrentUser, type User } from "../utils/auth";
 import Header from "./Header";
+import AccentDropdown from "./AccentDropdown";
 
 const Home: React.FC = () => {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
