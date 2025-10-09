@@ -116,7 +116,7 @@ const Home: React.FC = () => {
               </p>
               <Link
                 to="/login"
-                className="inline-block bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-semibold py-3 px-8 rounded-xl hover:from-indigo-600 hover:to-purple-700 transition-all duration-300 transform hover:scale-105 shadow-lg"
+                className="inline-block bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-semibold py-3 px-8 rounded-xl hover:from-indigo-600 hover:to-purple-700 shadow-lg"
               >
                 Go to Login
               </Link>
