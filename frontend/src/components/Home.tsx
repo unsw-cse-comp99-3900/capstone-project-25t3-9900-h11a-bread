@@ -132,12 +132,6 @@ const Home: React.FC = () => {
           >
             🎤 Voice Test (with VAD)
           </Link>
-          <Link
-            to="/voice-test-direct"
-            className="inline-block bg-gradient-to-r from-purple-500 to-blue-600 text-white font-semibold py-3 px-8 rounded-xl hover:from-purple-600 hover:to-blue-700 transition-all duration-300 transform hover:scale-105 shadow-lg"
-          >
-            🎙️ Direct Speechmatics Test
-          </Link>
         </div>
 
         <p className="text-gray-500 mt-8 text-sm">
