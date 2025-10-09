@@ -77,10 +77,13 @@ const Home: React.FC = () => {
                 <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center mr-3 shadow-lg">
                   <span className="text-white font-semibold text-lg">
                     {(() => {
-                      const name = currentUser.displayName || currentUser.email || "User";
-                      const nameParts = name.split(' ');
+                      const name =
+                        currentUser.displayName || currentUser.email || "User";
+                      const nameParts = name.split(" ");
                       if (nameParts.length >= 2) {
-                        return (nameParts[0][0] + nameParts[1][0]).toUpperCase();
+                        return (
+                          nameParts[0][0] + nameParts[1][0]
+                        ).toUpperCase();
                       } else {
                         return name.slice(0, 2).toUpperCase();
                       }
@@ -100,7 +103,7 @@ const Home: React.FC = () => {
               <button
                 onClick={handleLogout}
                 disabled={isLoggingOut}
-                className="w-full bg-gradient-to-r from-red-500 to-pink-600 text-white font-semibold py-3 px-8 rounded-xl hover:from-red-600 hover:to-pink-700 transition-all duration-300 transform hover:scale-105 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full bg-gradient-to-r from-red-500 to-pink-600 text-white font-semibold py-3 px-8 rounded-xl hover:from-red-600 hover:to-pink-700 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoggingOut ? "Logging out..." : "Logout"}
               </button>
