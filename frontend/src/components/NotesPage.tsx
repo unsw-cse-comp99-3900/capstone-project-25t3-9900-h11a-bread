@@ -76,7 +76,7 @@ const NotesPage: React.FC = () => {
   const fakeNotes = generateFakeNotes();
   const groupedNotes = groupNotesByDate(fakeNotes);
 
-  // Convert grouped object into a flat array for pagination
+  // Flatten grouped data for pagination
   const allNotes = Object.entries(groupedNotes).flatMap(([date, notes]) =>
     notes.map((n) => ({ ...n, dateLabel: date }))
   );
@@ -90,7 +90,7 @@ const NotesPage: React.FC = () => {
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedNotes = allNotes.slice(startIndex, startIndex + itemsPerPage);
 
-  // Re-group notes only for current page
+  // Re-group notes only for the current page
   const paginatedGrouped = paginatedNotes.reduce((acc, note) => {
     if (!acc[note.dateLabel]) acc[note.dateLabel] = [];
     acc[note.dateLabel].push(note);
@@ -98,65 +98,74 @@ const NotesPage: React.FC = () => {
   }, {} as Record<string, Note[]>);
 
   return (
-    <div className="bg-gray-50 min-h-screen py-8 px-6">
-      <div className="max-w-2xl mx-auto space-y-8">
-        {/* Display paginated groups */}
-        {Object.entries(paginatedGrouped).map(([date, notes]) => (
-          <div key={date}>
-            <h2 className="text-gray-600 font-semibold mb-3">{date}</h2>
-            <div className="flex flex-col gap-2">
-              {notes.map((note) => (
-                <div
-                  key={note.id}
-                  className="flex items-center justify-between bg-white rounded-lg px-4 py-3 shadow-sm hover:bg-gray-100 transition"
-                >
-                  <div className="flex flex-col">
-                    <div className="text-gray-900 font-medium">
-                      {note.name}{" "}
-                      <span className="text-gray-500 text-sm ml-1">
-                        {formatTime(note.createdAt)}
-                      </span>
-                    </div>
-                    <div className="text-gray-400 text-xs">
-                      {formatDuration(note.durationSec)}
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => downloadTranscript(note)}
-                    className="hover:scale-110 transition"
-                    title="Download transcript"
+    <div className="bg-gray-50 min-h-screen flex flex-col">
+      {/* ✅ Navbar placeholder */}
+      <nav className="w-full bg-white shadow-sm h-14 flex items-center justify-between px-6">
+        <h1 className="text-lg font-semibold text-gray-800">Notes</h1>
+        <div className="text-gray-500 text-sm">[ Navbar placeholder ]</div>
+      </nav>
+
+      {/* ✅ Main content */}
+      <main className="flex-1 py-8 px-6">
+        <div className="max-w-2xl mx-auto space-y-8">
+          {/* Display paginated groups */}
+          {Object.entries(paginatedGrouped).map(([date, notes]) => (
+            <div key={date}>
+              <h2 className="text-gray-600 font-semibold mb-3">{date}</h2>
+              <div className="flex flex-col gap-2">
+                {notes.map((note) => (
+                  <div
+                    key={note.id}
+                    className="flex items-center justify-between bg-white rounded-lg px-4 py-3 shadow-sm hover:bg-gray-100 transition"
                   >
-                    <Download className="w-4 h-4 text-gray-500" />
-                  </button>
-                </div>
-              ))}
+                    <div className="flex flex-col">
+                      <div className="text-gray-900 font-medium">
+                        {note.name}{" "}
+                        <span className="text-gray-500 text-sm ml-1">
+                          {formatTime(note.createdAt)}
+                        </span>
+                      </div>
+                      <div className="text-gray-400 text-xs">
+                        {formatDuration(note.durationSec)}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => downloadTranscript(note)}
+                      className="hover:scale-110 transition"
+                      title="Download transcript"
+                    >
+                      <Download className="w-4 h-4 text-gray-500" />
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
+          ))}
+
+          {/* Pagination controls */}
+          <div className="flex justify-center items-center gap-4 mt-6">
+            <button
+              className="px-3 py-1 rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300 disabled:opacity-40"
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage((p) => p - 1)}
+            >
+              Previous
+            </button>
+
+            <span className="text-sm text-gray-600">
+              Page {currentPage} of {totalPages}
+            </span>
+
+            <button
+              className="px-3 py-1 rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300 disabled:opacity-40"
+              disabled={currentPage === totalPages}
+              onClick={() => setCurrentPage((p) => p + 1)}
+            >
+              Next
+            </button>
           </div>
-        ))}
-
-        {/* Pagination controls */}
-        <div className="flex justify-center items-center gap-4 mt-6">
-          <button
-            className="px-3 py-1 rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300 disabled:opacity-40"
-            disabled={currentPage === 1}
-            onClick={() => setCurrentPage((p) => p - 1)}
-          >
-            Previous
-          </button>
-
-          <span className="text-sm text-gray-600">
-            Page {currentPage} of {totalPages}
-          </span>
-
-          <button
-            className="px-3 py-1 rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300 disabled:opacity-40"
-            disabled={currentPage === totalPages}
-            onClick={() => setCurrentPage((p) => p + 1)}
-          >
-            Next
-          </button>
         </div>
-      </div>
+      </main>
     </div>
   );
 };
