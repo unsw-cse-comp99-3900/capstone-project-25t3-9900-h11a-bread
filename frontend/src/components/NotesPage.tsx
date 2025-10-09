@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { format } from "date-fns";
 import { Download } from "lucide-react";
 
@@ -27,7 +27,7 @@ function generateFakeNotes(): Note[] {
       id: i + 1,
       name: "Note",
       createdAt: date,
-      durationSec: 115, // 1m55s
+      durationSec: 115,
       transcript: `This is the transcript content for note #${i + 1}.`,
     });
   }
@@ -76,10 +76,32 @@ const NotesPage: React.FC = () => {
   const fakeNotes = generateFakeNotes();
   const groupedNotes = groupNotesByDate(fakeNotes);
 
+  // Convert grouped object into a flat array for pagination
+  const allNotes = Object.entries(groupedNotes).flatMap(([date, notes]) =>
+    notes.map((n) => ({ ...n, dateLabel: date }))
+  );
+
+  // Pagination setup
+  const itemsPerPage = 5;
+  const [currentPage, setCurrentPage] = useState(1);
+  const totalPages = Math.ceil(allNotes.length / itemsPerPage);
+
+  // Slice notes for current page
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedNotes = allNotes.slice(startIndex, startIndex + itemsPerPage);
+
+  // Re-group notes only for current page
+  const paginatedGrouped = paginatedNotes.reduce((acc, note) => {
+    if (!acc[note.dateLabel]) acc[note.dateLabel] = [];
+    acc[note.dateLabel].push(note);
+    return acc;
+  }, {} as Record<string, Note[]>);
+
   return (
     <div className="bg-gray-50 min-h-screen py-8 px-6">
       <div className="max-w-2xl mx-auto space-y-8">
-        {Object.entries(groupedNotes).map(([date, notes]) => (
+        {/* Display paginated groups */}
+        {Object.entries(paginatedGrouped).map(([date, notes]) => (
           <div key={date}>
             <h2 className="text-gray-600 font-semibold mb-3">{date}</h2>
             <div className="flex flex-col gap-2">
@@ -111,6 +133,29 @@ const NotesPage: React.FC = () => {
             </div>
           </div>
         ))}
+
+        {/* Pagination controls */}
+        <div className="flex justify-center items-center gap-4 mt-6">
+          <button
+            className="px-3 py-1 rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300 disabled:opacity-40"
+            disabled={currentPage === 1}
+            onClick={() => setCurrentPage((p) => p - 1)}
+          >
+            Previous
+          </button>
+
+          <span className="text-sm text-gray-600">
+            Page {currentPage} of {totalPages}
+          </span>
+
+          <button
+            className="px-3 py-1 rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300 disabled:opacity-40"
+            disabled={currentPage === totalPages}
+            onClick={() => setCurrentPage((p) => p + 1)}
+          >
+            Next
+          </button>
+        </div>
       </div>
     </div>
   );
