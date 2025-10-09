@@ -1,10 +1,10 @@
-import React, { useState } from "react";
+import{ useState } from "react";
 import { FcGoogle } from "react-icons/fc";
 import { signInWithPopup } from "firebase/auth";
 import { auth, provider } from "../firebase/firebase";
 import loginPicture from "../assets/login-picture.png";
 
-const Login: React.FC = () => {
+const Login: JSX.Element= () => {
   const [isLoading, setIsLoading] = useState(false);
 
   const handleGoogleSignIn = async () => {
