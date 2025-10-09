@@ -2,7 +2,6 @@ import React from "react";
 import { Link } from "react-router-dom";
 import reactLogo from "../assets/react.svg";
 import viteLogo from "/vite.svg";
-import AccentDropdown from "./AccentDropdown";
 
 const Home: React.FC = () => {
   return (
@@ -49,7 +48,6 @@ const Home: React.FC = () => {
         <p className="text-gray-500 mt-8 text-sm">
           🐳 SystemX running in Docker container with TypeScript support
         </p>
-        <AccentDropdown />
       </div>
     </div>
   );
