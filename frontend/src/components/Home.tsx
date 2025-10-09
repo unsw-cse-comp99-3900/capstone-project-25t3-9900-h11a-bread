@@ -124,6 +124,22 @@ const Home: React.FC = () => {
           )}
         </div>
 
+        {/* Voice Test Links */}
+        <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
+          <Link
+            to="/voice-test"
+            className="inline-block bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-semibold py-3 px-8 rounded-xl hover:from-emerald-600 hover:to-teal-700 transition-all duration-300 transform hover:scale-105 shadow-lg"
+          >
+            🎤 Voice Test (with VAD)
+          </Link>
+          <Link
+            to="/voice-test-direct"
+            className="inline-block bg-gradient-to-r from-purple-500 to-blue-600 text-white font-semibold py-3 px-8 rounded-xl hover:from-purple-600 hover:to-blue-700 transition-all duration-300 transform hover:scale-105 shadow-lg"
+          >
+            🎙️ Direct Speechmatics Test
+          </Link>
+        </div>
+
         <p className="text-gray-500 mt-8 text-sm">
           🐳 SystemX running in Docker container with TypeScript support
         </p>
