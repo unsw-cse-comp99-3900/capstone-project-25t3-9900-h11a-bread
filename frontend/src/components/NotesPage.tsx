@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useState} from "react";
 import { format } from "date-fns";
 import { Download, ArrowLeft } from "lucide-react";
+import Header from "./Header";
 
 interface Note {
   id: number;
@@ -8,6 +9,12 @@ interface Note {
   createdAt: Date;
   durationSec: number;
   transcript: string;
+}
+
+const userName = "Johnny";
+const mode = "afterLogin";
+const handleLogout = () =>{
+  console.log("user logged out")
 }
 
 // --------------------------------------
@@ -72,8 +79,9 @@ const NoteDetail: React.FC<{ note: Note; onBack: () => void }> = ({
   onBack,
 }) => {
   return (
-    <div className="bg-gray-100 h-screen flex flex-col overflow-hidden">
-      <main className="flex-1 px-8 py-6 flex justify-center items-center">
+    <div className="bg-gray-100 h-full flex flex-col overflow-hidden">
+      <Header mode={mode} userName={userName} onLogout={handleLogout} />
+      <main className="px-8 py-6 pt-32 flex justify-center items-center">
         <div className="w-full max-w-3xl">
           <button
             onClick={onBack}
@@ -146,12 +154,12 @@ const NotesPage: React.FC = () => {
 
   return (
     <div className="bg-gray-100 h-screen flex flex-col overflow-hidden">
-      <main className="flex-1 flex justify-center px-8 py-6 items-center">
+      <Header mode={mode} userName={userName} onLogout={handleLogout} />
+      <main className="pt-32 flex justify-center px-8 py-6 items-center">
         <div className="w-full max-w-3xl">
           <h2 className="text-lg font-medium text-gray-700 mb-5 h-8">
             Welcome, Johnny
           </h2>
-
           <div className="bg-white rounded-2xl shadow-sm p-8 h-[580px] flex flex-col justify-between">
             <div className="space-y-6">
               {Object.entries(paginatedGrouped).map(([date, notes]) => (
