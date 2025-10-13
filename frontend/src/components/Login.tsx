@@ -1,4 +1,5 @@
-import{ useState } from "react";
+import{ useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { FcGoogle } from "react-icons/fc";
 import { signInWithPopup } from "firebase/auth";
 import { auth, provider } from "../firebase/firebase";
