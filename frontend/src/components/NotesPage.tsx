@@ -70,7 +70,7 @@ const NoteDetail: React.FC<{ note: Note; onBack: () => void }> = ({
   onBack,
 }) => {
   return (
-    <div className="bg-gray-100 h-full flex flex-col overflow-hidden">
+    <div className="bg-gray-100 h-screen flex flex-col ">
       <Header />
       <main className="px-8 py-6 pt-32 flex justify-center items-center">
         <div className="w-full max-w-3xl">
