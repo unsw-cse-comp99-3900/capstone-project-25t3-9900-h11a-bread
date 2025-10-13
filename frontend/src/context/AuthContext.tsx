@@ -1,0 +1,59 @@
+// import React, { createContext, useEffect, useState, ReactNode } from "react";
+// import { getAuth, onAuthStateChanged, User } from "firebase/auth";
+import React, { createContext, useEffect, useState } from "react";
+import type { ReactNode } from "react";
+import { getAuth, onAuthStateChanged } from "firebase/auth";
+import type { User } from "firebase/auth";
+
+import { app } from "../firebase/firebase";
+
+//  Define context type
+interface AuthContextType {
+  user: User | null;
+  loading: boolean;
+}
+
+// Create the context
+const AuthContext = createContext<AuthContextType>({
+  user: null,
+  loading: true,
+});
+
+// Define props for provider
+interface AuthProviderProps {
+  children: ReactNode;
+}
+
+// AuthProvider component
+export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const auth = getAuth(app);
+
+  useEffect(() => {
+    // Subscribe to Firebase Auth state changes
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      console.log("Auth state changed:", currentUser);
+      setUser(currentUser);
+      setLoading(false);
+    });
+
+    // Cleanup subscription on unmount
+    return () => unsubscribe();
+  }, [auth]);
+
+  // Show loading screen until auth state is resolved
+  return (
+    <AuthContext.Provider value={{ user, loading }}>
+      {loading ? (
+        <div className="flex justify-center items-center h-screen text-gray-500">
+          <p>Loading...</p>
+        </div>
+      ) : (
+        children
+      )}
+    </AuthContext.Provider>
+  );
+};
+
+export default AuthContext;

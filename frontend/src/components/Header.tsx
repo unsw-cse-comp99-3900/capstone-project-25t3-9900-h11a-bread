@@ -2,6 +2,7 @@ import Button from "../components/Button";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { logoutUser } from "../utils/auth";
+import { useAuth } from "../hooks/useAuth";
 
 type HeaderProps = {
   mode: "beforeLogin" | "afterLogin" | "logging in";
@@ -9,7 +10,10 @@ type HeaderProps = {
   onLogout: () => void;
 };
 
-function Header({ mode, userName, onLogout }: HeaderProps): JSX.Element {
+function Header({ mode, onLogout }: HeaderProps): JSX.Element {
+  const { user } = useAuth();
+  const userName = user?.displayName;
+  const userEmail = user?.email;
   const isLoggedIn = mode === "afterLogin";
   const [isToggled, setIsToggled] = useState(false);
 
@@ -65,14 +69,51 @@ function Header({ mode, userName, onLogout }: HeaderProps): JSX.Element {
         )}
         {isToggled && (
           <div
-            className="fixed inset-0 z-5"
-            role="dialog"
-            aria-modal="true"
+            className="fixed inset-0 z-10 bg-black/10 flex justify-end"
             onClick={toggle}
           >
-            <div className="absolute right-6 top-24 rounded-xl bg-white p-4">
-              <Button title="log out" onClick={handleLogout} />
-              {/* replace with real toggle content */}
+            {/* Popup container */}
+            <div
+              className="relative bg-white rounded-2xl shadow-lg w-70 h-70 mr-6 mt-28 p-6 flex flex-col items-center"
+              onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside the box
+            >
+              {/* Close button (top-right) */}
+              <button
+                className="absolute right-4 top-4 text-gray-500 hover:text-gray-700"
+                onClick={toggle}
+              >
+                ✕
+              </button>
+
+              {/* Profile avatar circle */}
+              <div className="w-16 h-16 rounded-full bg-[#77A4F7] flex items-center justify-center text-white text-2xl font-bold mb-3">
+                {initial}
+              </div>
+
+              {/* Greeting and email */}
+              <p className="text-lg font-semibold text-gray-800">
+                Hi, {userName?.split(" ")[0] || "User"}
+              </p>
+              <p className="text-sm text-gray-500 mb-6">{userEmail}</p>
+
+              {/* "My Transcripts" button */}
+              <button
+                onClick={() => {
+                  navigate("/notes");
+                  toggle();
+                }}
+                className="w-4/5 py-2 mb-3 border border-gray-300 rounded-full text-gray-700 font-medium hover:bg-gray-50 transition"
+              >
+                My Transcripts
+              </button>
+
+              {/* "Log Out" button */}
+              <button
+                onClick={handleLogout}
+                className="w-4/5 py-2 border border-gray-300 rounded-full text-gray-700 font-medium hover:bg-gray-50 transition"
+              >
+                Log Out
+              </button>
             </div>
           </div>
         )}
