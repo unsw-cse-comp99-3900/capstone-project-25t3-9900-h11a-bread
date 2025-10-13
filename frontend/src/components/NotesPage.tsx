@@ -12,12 +12,6 @@ interface Note {
   transcript: string;
 }
 
-const userName = "Johnny";
-const mode = "afterLogin";
-const handleLogout = () => {
-  console.log("user logged out");
-};
-
 // Utility Functions
 function generateFakeNotes(): Note[] {
   const notes: Note[] = [];
@@ -77,7 +71,7 @@ const NoteDetail: React.FC<{ note: Note; onBack: () => void }> = ({
 }) => {
   return (
     <div className="bg-gray-100 h-full flex flex-col overflow-hidden">
-      <Header mode={mode} userName={userName} onLogout={handleLogout} />
+      <Header />
       <main className="px-8 py-6 pt-32 flex justify-center items-center">
         <div className="w-full max-w-3xl">
           <button
@@ -153,7 +147,7 @@ const NotesPage: React.FC = () => {
 
   return (
     <div className="bg-gray-100 h-screen flex flex-col overflow-hidden">
-      <Header mode={mode} onLogout={handleLogout} />
+      <Header />
       <main className="pt-32 flex justify-center px-8 py-6 items-center">
         <div className="w-full max-w-3xl">
           <h2 className="text-lg font-medium text-gray-700 mb-5 h-8">

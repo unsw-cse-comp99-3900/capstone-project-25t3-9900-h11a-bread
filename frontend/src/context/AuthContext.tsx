@@ -2,7 +2,13 @@
 // import { getAuth, onAuthStateChanged, User } from "firebase/auth";
 import React, { createContext, useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import { getAuth, onAuthStateChanged } from "firebase/auth";
+import {
+  getAuth,
+  onAuthStateChanged,
+  signInWithPopup,
+  GoogleAuthProvider,
+  signOut,
+} from "firebase/auth";
 import type { User } from "firebase/auth";
 
 import { app } from "../firebase/firebase";
@@ -11,12 +17,16 @@ import { app } from "../firebase/firebase";
 interface AuthContextType {
   user: User | null;
   loading: boolean;
+  loginWithGoogle: () => Promise<void>;
+  logout: () => Promise<void>;
 }
 
 // Create the context
 const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
+  loginWithGoogle: async () => {},
+  logout: async () => {},
 });
 
 // Define props for provider
@@ -29,6 +39,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const auth = getAuth(app);
+  const provider = new GoogleAuthProvider();
 
   useEffect(() => {
     // Subscribe to Firebase Auth state changes
@@ -42,16 +53,33 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return () => unsubscribe();
   }, [auth]);
 
+  const loginWithGoogle = async () => {
+    try {
+      const result = await signInWithPopup(auth, provider);
+      const currentUser = result.user;
+      setUser(currentUser);
+      console.log("User signed in:", currentUser.displayName);
+    } catch (error) {
+      console.error("Google Sign-In Error:", error);
+      throw error;
+    }
+  };
+
+  const logout = async () => {
+    try {
+      await signOut(auth);
+      setUser(null);
+      console.log("User logged out.");
+    } catch (error) {
+      console.error("Logout error:", error);
+      throw error;
+    }
+  };
+
   // Show loading screen until auth state is resolved
   return (
-    <AuthContext.Provider value={{ user, loading }}>
-      {loading ? (
-        <div className="flex justify-center items-center h-screen text-gray-500">
-          <p>Loading...</p>
-        </div>
-      ) : (
-        children
-      )}
+    <AuthContext.Provider value={{ user, loading, loginWithGoogle, logout }}>
+      {children}
     </AuthContext.Provider>
   );
 };

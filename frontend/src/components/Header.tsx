@@ -1,26 +1,19 @@
 import Button from "../components/Button";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { logoutUser } from "../utils/auth";
 import { useAuth } from "../hooks/useAuth";
 
-type HeaderProps = {
-  mode: "beforeLogin" | "afterLogin" | "logging in";
-  userName?: string;
-  onLogout: () => void;
-};
+function Header(): JSX.Element {
+  const { user, logout } = useAuth();
 
-function Header({ mode, onLogout }: HeaderProps): JSX.Element {
-  const { user } = useAuth();
   const userName = user?.displayName;
   const userEmail = user?.email;
-  const isLoggedIn = mode === "afterLogin";
+  const isLoggedIn = !!user;
   const [isToggled, setIsToggled] = useState(false);
 
   const handleLogout = async () => {
     try {
-      await logoutUser();
-      onLogout();
+      await logout();
       navigate("/");
     } catch (error) {
       console.error("Logout failed:", error);
