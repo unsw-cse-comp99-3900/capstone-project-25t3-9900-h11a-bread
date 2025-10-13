@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 
 function Header(): JSX.Element {
-  const { user, logout } = useAuth();
+  const { user, logout, loading } = useAuth();
 
   const userName = user?.displayName;
   const userEmail = user?.email;
@@ -46,19 +46,22 @@ function Header(): JSX.Element {
           className="w-auto h-14 object-cover"
           referrerPolicy="no-referrer"
         />
-        {isLoggedIn ? (
+
+        {!loading && isLoggedIn ? (
           <button onClick={toggle}>
             <div className="w-14 h-14 rounded-full bg-[#77A4F7] flex justify-center items-center text-white font-bold">
               {initial}
             </div>
           </button>
         ) : (
-          <Button
-            title="Log in"
-            onClick={() => {
-              login("/login");
-            }}
-          />
+          !loading && (
+            <Button
+              title="Log in"
+              onClick={() => {
+                login("/login");
+              }}
+            />
+          )
         )}
         {isToggled && (
           <div
