@@ -1,0 +1,29 @@
+version: "3.9"
+services:
+  backend-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: denoise-backend-dev
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+      - SPEECHMATICS_API_KEY=7lLJUFdbyFvzNODMyb1MLr49amx6CyYy
+    restart: always
+    command: uvicorn VAD.app:app --reload --host 0.0.0.0 --port 8000
+
+  backend-prod:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: denoise-backend-prod
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - SPEECHMATICS_API_KEY=7lLJUFdbyFvzNODMyb1MLr49amx6CyYy
+    restart: always
+    profiles: ["production"]
