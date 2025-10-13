@@ -1,4 +1,4 @@
-import{ useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { FcGoogle } from "react-icons/fc";
 import { signInWithPopup } from "firebase/auth";
@@ -6,7 +6,7 @@ import { auth, provider } from "../firebase/firebase";
 import { isUserLoggedIn } from "../utils/auth";
 import loginPicture from "../assets/login-picture.png";
 
-const Login: JSX.Element= () => {
+const Login: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 

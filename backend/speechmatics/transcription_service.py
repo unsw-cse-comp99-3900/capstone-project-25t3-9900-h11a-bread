@@ -148,8 +148,13 @@ class SpeechmaticsTranscriptionService:
                                 language: str = None, 
                                 enable_partials: bool = True,
                                 sample_rate: int = 16000,
-                                diarization: str = "speaker") -> bool:
-        """开始转录会话（默认启用多说话人分离）"""
+                                diarization: str = "speaker",
+                                audio_filter_volume_threshold: float = None) -> bool:
+        """开始转录会话（默认启用多说话人分离）
+        
+        Args:
+            audio_filter_volume_threshold: Speechmatics音频过滤阈值(0-100)
+        """
         try:
             # 连接WebSocket
             await self.client.connect()
@@ -159,7 +164,8 @@ class SpeechmaticsTranscriptionService:
                 language=language,
                 enable_partials=enable_partials,
                 sample_rate=sample_rate,
-                diarization=diarization
+                diarization=diarization,
+                audio_filter_volume_threshold=audio_filter_volume_threshold
             )
             
             if success:
@@ -183,11 +189,8 @@ class SpeechmaticsTranscriptionService:
             return False
         
         try:
-            # 确保音频数据是float32格式
-            if audio_frame.dtype != np.float32:
-                audio_frame = audio_frame.astype(np.float32)
-            
-            # 转换为字节
+            # 支持 Int16 (pcm_s16le) 和 Float32 (pcm_f32le)
+            # 直接发送原始字节，不做转换
             audio_bytes = audio_frame.tobytes()
             
             # 发送音频数据

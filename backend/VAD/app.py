@@ -491,22 +491,100 @@ async def get_transcription_results():
 
 # ------------------ 集成WebSocket：VAD + Speechmatics实时转录 ------------------
 
-@app.websocket("/ws/integrated")
-async def ws_integrated_processing(websocket: WebSocket):
+@app.websocket("/ws/direct-transcription")
+async def ws_direct_transcription(websocket: WebSocket):
     """
-    集成处理WebSocket：VAD降噪 + Speechmatics实时转录
-    
-    协议：
-      1) 客户端发送配置JSON：
-         {"sr":16000,"frame_samples":480,"subtract_scale":1.0,"enable_transcription":true,"language":"en"}
-      2) 服务器启动转录服务（如果启用）
-      3) 客户端循环发送音频帧
-      4) 服务器返回降噪后音频帧 + 转录结果（如果启用）
+    直接转录WebSocket：跳过VAD降噪，直接发送原始音频到Speechmatics
+    用于诊断问题 - 如果这个准确，说明问题在VAD降噪
     """
     await websocket.accept()
     
-    # 初始化VAD降噪器
-    denoiser = None
+    try:
+        # 接收配置
+        cfg = await websocket.receive_json()
+        logger.info(f"📥 [直接转录] 收到配置: {cfg}")
+        
+        sr = int(cfg.get("sr", 16000))
+        frame_samples = int(cfg.get("frame_samples", 800))
+        language = cfg.get("language", "en")
+        
+        # 启动转录服务
+        logger.info(f"🎤 [直接转录] 启动Speechmatics [language={language}, sr={sr}]")
+        await transcription_service.start_transcription(
+            language=language,
+            enable_partials=True,
+            sample_rate=sr,
+            diarization=None
+        )
+        logger.info("✅ [直接转录] 转录服务已启动")
+        
+        await websocket.send_text("OK: ready")
+        
+        expected_nbytes = frame_samples * 4
+        frame_count = 0
+        
+        while True:
+            try:
+                msg = await websocket.receive()
+            except RuntimeError as e:
+                logger.info(f"WebSocket 接收中断: {e}")
+                break
+                
+            if "bytes" not in msg:
+                continue
+                
+            data: bytes = msg["bytes"]
+            if len(data) != expected_nbytes:
+                logger.warning(f"帧大小错误: {len(data)} != {expected_nbytes}")
+                continue
+            
+            # 直接发送原始音频，不做任何处理
+            frame = np.frombuffer(data, dtype=np.float32)
+            await transcription_service.send_audio_frame(frame)
+            
+            # 获取转录结果
+            latest_transcript = transcription_service.get_latest_transcript()
+            latest_partial = transcription_service.get_latest_partial_transcript()
+            
+            response = {
+                "type": "audio_and_transcript",
+                "audio_frame": "",  # 不返回音频
+                "transcript": latest_transcript,
+                "partial_transcript": latest_partial,
+                "frame_count": frame_count
+            }
+            await websocket.send_text(f"DATA: {json.dumps(response)}")
+            frame_count += 1
+            
+            if frame_count % 100 == 0:
+                logger.info(f"📊 已发送 {frame_count} 帧")
+            
+    except WebSocketDisconnect:
+        logger.info("[直接转录] WebSocket断开")
+    except Exception as e:
+        logger.error(f"[直接转录] 错误: {e}", exc_info=True)
+    finally:
+        try:
+            logger.info("[直接转录] 停止转录服务...")
+            await transcription_service.stop_transcription()
+            logger.info("[直接转录] 已停止")
+        except Exception as e:
+            logger.error(f"停止失败: {e}")
+
+@app.websocket("/ws/integrated")
+async def ws_integrated_processing(websocket: WebSocket):
+    """
+    集成处理WebSocket：Speechmatics实时转录（使用API自带音频过滤）
+    
+    协议：
+      1) 客户端发送配置JSON：
+         {"sr":16000,"frame_samples":800,"enable_transcription":true,"language":"en","audio_filter_volume_threshold":3.0}
+      2) 服务器启动转录服务（如果启用）
+      3) 客户端循环发送音频帧（Int16 PCM）
+      4) 服务器返回音频帧 + 转录结果（如果启用）
+    """
+    await websocket.accept()
+    
     transcription_enabled = False
     
     try:
@@ -514,75 +592,94 @@ async def ws_integrated_processing(websocket: WebSocket):
         cfg = await websocket.receive_json()
         sr = int(cfg.get("sr", 16000))
         frame_samples = int(cfg.get("frame_samples", 480))
-        subtract_scale = float(cfg.get("subtract_scale", 1.0))
         transcription_enabled = cfg.get("enable_transcription", True)  # 默认启用转录
         language = cfg.get("language", None)
-        
-        # 创建降噪器
-        denoiser = StreamingSpectralSubtractor(sr, frame_samples, subtract_scale=subtract_scale)
+        audio_filter_threshold = cfg.get("audio_filter_volume_threshold", None)  # Speechmatics音频过滤阈值
         
         # 启动转录服务（如果启用）
         if transcription_enabled:
-            await transcription_service.start_transcription(
-                language=language,
-                enable_partials=True,
-                sample_rate=sr
-            )
+            logger.info(f"🎤 启动转录服务 [language={language}, sample_rate={sr}, audio_filter={audio_filter_threshold}]")
+            try:
+                await transcription_service.start_transcription(
+                    language=language,
+                    enable_partials=True,
+                    sample_rate=sr,
+                    diarization=None,  # 禁用说话人分离以提高单人说话的准确性
+                    audio_filter_volume_threshold=audio_filter_threshold
+                )
+                logger.info("✅ 转录服务启动成功")
+            except Exception as e:
+                logger.error(f"❌ 转录服务启动失败: {e}", exc_info=True)
+                raise
         
         await websocket.send_text("OK: ready")
         
-        expected_nbytes = frame_samples * 4  # float32
+        # 前端发送的是 Int16 (pcm_s16le)，每个样本 2 字节
+        expected_nbytes = frame_samples * 2  # int16 (2 bytes per sample)
         frame_count = 0
         
+        logger.info(f"📊 [集成模式] 期望每帧: {expected_nbytes} 字节 ({frame_samples} samples × 2 bytes)")
+        logger.info(f"📊 [集成模式] 音频配置: {sr}Hz, pcm_s16le, mono")
+        
         while True:
-            msg = await websocket.receive()
+            try:
+                msg = await websocket.receive()
+            except RuntimeError as e:
+                logger.info(f"WebSocket 接收中断: {e}")
+                break
+                
             if "bytes" not in msg:
+                if "text" in msg:
+                    logger.debug(f"收到文本消息: {msg['text']}")
                 continue
                 
             data: bytes = msg["bytes"]
             if len(data) != expected_nbytes:
+                logger.warning(f"错误的帧大小: {len(data)} != {expected_nbytes}")
                 await websocket.send_text(f"ERR: bad frame size {len(data)} != {expected_nbytes}")
                 continue
             
-            # 处理音频帧
-            frame = np.frombuffer(data, dtype=np.float32)
-            clean_frame = denoiser.process_frame(frame)
+            # 处理音频帧：Int16 直接发送（不降噪）
+            int16_frame = np.frombuffer(data, dtype=np.int16)
+            
+            # 诊断日志 (每100帧打印一次)
+            if frame_count % 100 == 0:
+                logger.info(f"📊 帧 {frame_count}: Int16 范围=[{int16_frame.min()}, {int16_frame.max()}]")
             
             # 发送转录（如果启用）
             if transcription_enabled:
-                await transcription_service.send_audio_frame(clean_frame)
+                # 发送音频给 Speechmatics (使用 API 自带的音频过滤)
+                await transcription_service.send_audio_frame(int16_frame)
                 
                 # 获取最新转录结果
                 latest_transcript = transcription_service.get_latest_transcript()
                 latest_partial = transcription_service.get_latest_partial_transcript()
                 
-                # 发送降噪后音频帧 + 转录结果
+                # 发送音频帧 + 转录结果
                 response = {
                     "type": "audio_and_transcript",
-                    "audio_frame": base64.b64encode(clean_frame.tobytes()).decode("utf-8"),
+                    "audio_frame": base64.b64encode(int16_frame.tobytes()).decode("utf-8"),
                     "transcript": latest_transcript,
                     "partial_transcript": latest_partial,
                     "frame_count": frame_count
                 }
                 await websocket.send_text(f"DATA: {json.dumps(response)}")
             else:
-                # 只发送降噪后音频帧
-                await websocket.send_bytes(clean_frame.tobytes())
+                # 只发送音频帧
+                await websocket.send_bytes(int16_frame.tobytes())
             
             frame_count += 1
             
     except WebSocketDisconnect:
         logger.info("WebSocket连接断开")
     except Exception as e:
-        logger.error(f"集成处理错误: {e}")
-        try:
-            await websocket.send_text(f"ERR: {repr(e)}")
-        finally:
-            pass
+        logger.error(f"集成处理错误: {e}", exc_info=True)
     finally:
         # 清理资源
         if transcription_enabled:
             try:
+                logger.info("正在停止转录服务...")
                 await transcription_service.stop_transcription()
-            except:
-                pass
+                logger.info("转录服务已停止")
+            except Exception as e:
+                logger.error(f"停止转录服务失败: {e}")

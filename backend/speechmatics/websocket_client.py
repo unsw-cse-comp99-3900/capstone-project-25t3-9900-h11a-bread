@@ -109,8 +109,14 @@ class SpeechmaticsWebSocketClient:
                               language: str = None, 
                               enable_partials: bool = True,
                               sample_rate: int = 16000,
-                              diarization: str = "speaker") -> bool:
-        """开始识别会话（默认启用多说话人分离）"""
+                              diarization: str = "speaker",
+                              audio_filter_volume_threshold: float = None) -> bool:
+        """开始识别会话（默认启用多说话人分离）
+        
+        Args:
+            audio_filter_volume_threshold: 音频过滤音量阈值(0-100)。
+                0 = 不过滤，1-5 = 温和过滤背景噪音，100 = 移除所有音频
+        """
         if not self.is_connected:
             raise WebSocketException("WebSocket未连接")
         
@@ -119,14 +125,24 @@ class SpeechmaticsWebSocketClient:
             transcription_config = {
                 "language": language,
                 "enable_partials": enable_partials,
-                "max_delay": 2.0,  # Speechmatics要求至少0.7，使用2秒（平衡速度和准确度）
-                "diarization": diarization  # 默认启用说话人分离
+                "max_delay": 1.0,  # 降低延迟到1秒（Speechmatics最小是0.7，1.0是好的平衡）
             }
+            
+            # 只有明确启用时才添加 diarization 字段
+            if diarization:
+                transcription_config["diarization"] = diarization
+            
+            # 添加音频过滤配置（如果启用）
+            if audio_filter_volume_threshold is not None and audio_filter_volume_threshold >= 0:
+                transcription_config["audio_filtering_config"] = {
+                    "volume_threshold": audio_filter_volume_threshold
+                }
+                logger.info(f"启用 Speechmatics 音频过滤，阈值: {audio_filter_volume_threshold}")
             
             request = StartRecognitionRequest(
                 audio_format={
                     "type": "raw",
-                    "encoding": "pcm_f32le",
+                    "encoding": "pcm_s16le",  # 使用 Int16 格式（推荐）
                     "sample_rate": sample_rate
                 },
                 transcription_config=transcription_config
@@ -184,15 +200,10 @@ class SpeechmaticsWebSocketClient:
             # 发送音频数据（二进制）
             await self.websocket.send(audio_data)
             
-            # 等待确认
-            response = await self.websocket.recv()
-            if isinstance(response, str):
-                response_data = json.loads(response)
-                if response_data.get("message") == "AudioAdded":
-                    self.seq_no = response_data.get("seq_no", self.seq_no + 1)
-                    return True
-            
-            return False
+            # 不等待确认 - 让 listen_for_messages() 统一处理所有接收
+            # AudioAdded 确认消息会在后台监听线程中处理
+            self.seq_no += 1
+            return True
             
         except Exception as e:
             logger.error(f"发送音频失败: {e}")
@@ -251,6 +262,11 @@ class SpeechmaticsWebSocketClient:
             elif message_type == "AddPartialTranscript":
                 if self.on_partial_transcript:
                     self.on_partial_transcript(data)
+            elif message_type == "AudioAdded":
+                # 更新序列号（如果服务器返回）
+                if "seq_no" in data:
+                    self.seq_no = data["seq_no"]
+                logger.debug(f"音频已添加，序列号: {self.seq_no}")
             elif message_type == "EndOfTranscript":
                 if self.on_end_of_transcript:
                     self.on_end_of_transcript(data)
@@ -258,6 +274,9 @@ class SpeechmaticsWebSocketClient:
                 await self._handle_error(data)
             elif message_type == "Warning":
                 await self._handle_warning(data)
+            elif message_type == "Info":
+                # 处理信息消息（如配额信息）
+                logger.debug(f"Info消息: {data.get('reason', 'N/A')}")
             else:
                 logger.debug(f"未处理的消息类型: {message_type}")
                 

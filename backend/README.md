@@ -5,10 +5,12 @@ Fully containerized for both development and production environments.
 
 ## 1. Features
 
-- **FastAPI** for high-performance backend framework
+- **FastAPI** for high-performance async backend framework
+- **Real-time Speech Recognition** via Speechmatics WebSocket API
+- **Speechmatics Audio Filtering** - Built-in noise reduction (volume-based filtering)
 - **WebSocket** support for real-time audio streaming
 - **Docker** support for consistent deployment
-- **Hot Reloading** in development
+- **Hot Reloading** in development mode
 - **Uvicorn** ASGI server for production
 - **Swagger UI** for API documentation
 - Modular pipeline design (ASR implemented, VAD/TTS pending)
@@ -50,7 +52,7 @@ docker compose --profile production down - Stop production backend
 | ASR  | POST   | /transcription/stop    | Stop transcription and get results       |
 | ASR  | GET    | /transcription/status  | Query transcription session status       |
 | ASR  | GET    | /transcription/results | Retrieve transcription results           |
-| ASR  | WS     | /ws/integrated         | Integrated denoising + transcription     |
+| ASR  | WS     | /ws/integrated         | Real-time audio streaming + transcription (with Speechmatics audio filtering)     |
 
 ## 4. Project Structure
 
@@ -122,7 +124,7 @@ SPEECHMATICS_API_KEY: str = "your_api_key_here"
 ### 6.1 Speechmatics Integration
 
 - **Real-time transcription**: WebSocket-based streaming ASR
-- **Multi-speaker diarization**: Automatic speaker separation
+- **Audio filtering**: Speechmatics volume-based background noise filtering
 - **Language auto-detection**: Supports multiple languages
 - **Error handling**: Comprehensive exception handling with retry logic
 
@@ -131,20 +133,52 @@ SPEECHMATICS_API_KEY: str = "your_api_key_here"
 ```python
 import requests
 
-# Start transcription session with speaker diarization
+# Start transcription session
 response = requests.post("http://localhost:8000/transcription/start", 
-    json={"language": None, "diarization": "speaker"})
+    json={"language": "en", "diarization": None})
 
 # Stop and retrieve results
 results = requests.post("http://localhost:8000/transcription/stop").json()
-for item in results['results']:
-    print(f"{item['speaker']}: {item['text']}")
+print(f"Transcript: {results['transcript']}")
 ```
 
 ### 6.3 Audio Format Requirements
 
-- Encoding: `pcm_f32le` (Float32 PCM, little-endian)
+**For `/ws/integrated` endpoint:**
+
+- Encoding: `pcm_s16le` (Int16 PCM, little-endian)
 - Sample rate: `16000 Hz`
 - Channels: `1 (mono)`
-- Frame size: `480 samples (30ms @ 16kHz)`
+- Frame size: `800 samples (50ms @ 16kHz)`
+- Bytes per frame: `1600 bytes (800 samples × 2 bytes)`
+
+**Configuration parameters:**
+- `audio_filter_volume_threshold`: `0-100` (recommended: `3.0` for mild background noise filtering)
+
+### 6.4 WebSocket Protocol (`/ws/integrated`)
+
+**Step 1:** Client sends configuration (JSON):
+```json
+{
+  "sr": 16000,
+  "frame_samples": 800,
+  "enable_transcription": true,
+  "language": "en",
+  "audio_filter_volume_threshold": 3.0
+}
+```
+
+**Step 2:** Server responds: `"OK: ready"`
+
+**Step 3:** Client streams audio frames (binary Int16 PCM, 1600 bytes per frame)
+
+**Step 4:** Server returns transcription results (JSON):
+```json
+{
+  "type": "audio_and_transcript",
+  "transcript": "Full transcript...",
+  "partial_transcript": "Partial...",
+  "frame_count": 123
+}
+```
 
