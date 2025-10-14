@@ -45,6 +45,9 @@ function Header(): JSX.Element {
           decoding="async"
           className="w-auto h-14 object-cover"
           referrerPolicy="no-referrer"
+          onClick={() => {
+            navigate("/");
+          }}
         />
 
         {!loading && isLoggedIn ? (
