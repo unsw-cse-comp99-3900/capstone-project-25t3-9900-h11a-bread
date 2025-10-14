@@ -6,13 +6,13 @@ type AccentOption = {
 };
 
 const accentOptions: AccentOption[] = [
-  { label: "🏳️‍🌈 American English", value: "american" },
-  { label: "🏳️‍🌈 British English (UK)", value: "british" },
-  { label: "🏳️‍🌈 Australian English", value: "australian" },
-  { label: "🏳️‍🌈 Indian English", value: "indian" },
-  { label: "🏳️‍🌈 Chinese English", value: "chinese" },
-  { label: "🏳️‍🌈 Canadian English", value: "canadian" },
-  { label: "🏳️‍🌈 Irish English", value: "irish" },
+  { label: "🇺🇸 American English", value: "american" },
+  { label: "🇬🇧 British English (UK)", value: "british" },
+  { label: "🇦🇺 Australian English", value: "australian" },
+  { label: "🇮🇳 Indian English", value: "indian" },
+  { label: "🇨🇳 Chinese English", value: "chinese" },
+  { label: "🇨🇦 Canadian English", value: "canadian" },
+  { label: "🇮🇪 Irish English", value: "irish" },
 ];
 
 const AccentDropdown: React.FC = () => {
