@@ -7,6 +7,7 @@ import Button from "./Button";
 import { Download } from "lucide-react";
 
 const Home: React.FC = () => {
+  const [isLoading, setIsLoading] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [error, setError] = useState("");
@@ -14,6 +15,7 @@ const Home: React.FC = () => {
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const [isStarted, setIsStarted] = useState<boolean>(false);
+  const [hasStarted, setHasStarted] = useState(false);
 
   const API_KEY = import.meta.env.VITE_SPEECHMATICS_API_KEY;
 
@@ -26,11 +28,10 @@ const Home: React.FC = () => {
     link.click();
     window.URL.revokeObjectURL(url);
   };
-  const handleToggle = () => {
-    setIsStarted((prev) => !prev);
-  };
+
   const startRecording = async () => {
     try {
+      setIsLoading(true);
       setError("");
       setTranscript("");
 
@@ -135,6 +136,8 @@ const Home: React.FC = () => {
           err instanceof Error ? err.message : String(err)
         }`
       );
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -172,6 +175,8 @@ const Home: React.FC = () => {
   };
 
   const handleButtonClick = () => {
+    setIsStarted((prev) => !prev);
+    setHasStarted(true);
     if (isRecording) {
       stopRecording();
     } else {
@@ -191,16 +196,18 @@ const Home: React.FC = () => {
           <div className="h-full">
             <button
               onClick={() => {
-                handleToggle();
                 handleButtonClick();
               }}
-              className="relative w-40 h-40 rounded-full bg-blue-400 text-white text-2xl font-semibold shadow-lg hover:bg-blue-500 transition-all mt-30"
+              disabled={isLoading}
+              className={`relative w-40 h-40 rounded-full text-white text-2xl font-semibold shadow-lg transition-all mt-30 
+    ${isLoading ? "bg-gray-400 cursor-wait" : "bg-blue-400 hover:bg-blue-500"}
+  `}
             >
-              {isStarted ? "Stop" : "Start"}
+              {isLoading ? "Loading" : isStarted ? "Stop" : "Start"}
             </button>
           </div>
         </div>
-        {isStarted && (
+        {hasStarted && (
           <div className="w-[500px] h-[580px] mt-[52px] flex flex-col overflow-hidden justify-between">
             {/* Header */}
             <div>
@@ -215,17 +222,19 @@ const Home: React.FC = () => {
                 {transcript}
               </div>
             </div>
-            <div className="">
-              <button
-                className=" w-[250px] bg-blue-500 text-white text-sm px-4 py-2 rounded-full hover:bg-blue-600 transition flex items-center gap-2 justify-center ml-[200px]"
-                onClick={() => {
-                  handleDownload({ transcript });
-                }}
-              >
-                <Download className="w-4 h-4" />
-                Save Transcript
-              </button>{" "}
-            </div>
+            {!isStarted && (
+              <div>
+                <button
+                  className=" w-[250px] bg-blue-500 text-white text-sm px-4 py-2 rounded-full hover:bg-blue-600 transition flex items-center gap-2 justify-center ml-[200px]"
+                  onClick={() => {
+                    handleDownload({ transcript });
+                  }}
+                >
+                  <Download className="w-4 h-4" />
+                  Save Transcript
+                </button>
+              </div>
+            )}
           </div>
         )}
       </main>
