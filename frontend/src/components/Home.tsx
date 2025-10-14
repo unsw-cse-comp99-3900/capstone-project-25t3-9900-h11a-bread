@@ -12,16 +12,22 @@ const Home: React.FC = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [error, setError] = useState("");
-  const clientRef = useRef(null);
-  const mediaStreamRef = useRef(null);
-  const audioContextRef = useRef(null);
+  const clientRef = useRef<RealtimeClient | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
 
-  const API_KEY = "rUMh871kTPntcU3dqekus0DW6TyAfunh";
+  const API_KEY = import.meta.env.VITE_SPEECHMATICS_API_KEY;
 
   const startRecording = async () => {
     try {
       setError("");
       setTranscript("");
+
+      if (!API_KEY) {
+        throw new Error(
+          "Speechmatics API key not configured. Please check your .env file."
+        );
+      }
 
       // Create a new client
       const client = new RealtimeClient();
@@ -88,7 +94,7 @@ const Home: React.FC = () => {
 
       // Set up audio processing with 16kHz sample rate
       const audioContext = new (window.AudioContext ||
-        window.webkitAudioContext)({
+        (window as any).webkitAudioContext)({
         sampleRate: 16000,
       });
       audioContextRef.current = audioContext;
@@ -113,7 +119,11 @@ const Home: React.FC = () => {
       setIsRecording(true);
     } catch (err) {
       console.error("Error starting recording:", err);
-      setError(`Failed to start recording: ${err.message}`);
+      setError(
+        `Failed to start recording: ${
+          err instanceof Error ? err.message : String(err)
+        }`
+      );
     }
   };
 
@@ -127,7 +137,9 @@ const Home: React.FC = () => {
 
       // Stop media stream
       if (mediaStreamRef.current) {
-        mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+        mediaStreamRef.current
+          .getTracks()
+          .forEach((track: MediaStreamTrack) => track.stop());
         mediaStreamRef.current = null;
       }
 
@@ -140,7 +152,11 @@ const Home: React.FC = () => {
       setIsRecording(false);
     } catch (err) {
       console.error("Error stopping recording:", err);
-      setError(`Failed to stop recording: ${err.message}`);
+      setError(
+        `Failed to stop recording: ${
+          err instanceof Error ? err.message : String(err)
+        }`
+      );
     }
   };
 
@@ -169,7 +185,7 @@ const Home: React.FC = () => {
   }, []);
 
   const mode = isLoggedIn ? "afterLogin" : "beforeLogin";
-  const userName = currentUser?.displayName;
+  const userName = currentUser?.displayName || undefined;
 
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center">
