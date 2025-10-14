@@ -82,12 +82,12 @@ function Header(): JSX.Element {
               </button>
 
               {/* Profile avatar circle */}
-              <div className="w-16 h-16 rounded-full bg-[#77A4F7] flex items-center justify-center text-white text-2xl font-bold mb-3">
+              <div className="w-13 h-13 rounded-full bg-[#77A4F7] flex items-center justify-center text-white  font-bold ">
                 {initial}
               </div>
 
               {/* Greeting and email */}
-              <p className="text-lg font-semibold text-gray-800">
+              <p className="text-lg font-semibold text-gray-800 mt-3">
                 Hi, {userName?.split(" ")[0] || "User"}
               </p>
               <p className="text-sm text-gray-500 mb-6">{userEmail}</p>
