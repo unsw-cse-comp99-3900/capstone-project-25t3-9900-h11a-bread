@@ -1,7 +1,8 @@
-import React, { useState} from "react";
+import React, { useState } from "react";
 import { format } from "date-fns";
 import { Download, ArrowLeft } from "lucide-react";
 import Header from "./Header";
+import { useAuth } from "../hooks/useAuth";
 
 interface Note {
   id: number;
@@ -11,15 +12,7 @@ interface Note {
   transcript: string;
 }
 
-const userName = "Johnny";
-const mode = "afterLogin";
-const handleLogout = () =>{
-  console.log("user logged out")
-}
-
-// --------------------------------------
-// 🧩 Utility Functions
-// --------------------------------------
+// Utility Functions
 function generateFakeNotes(): Note[] {
   const notes: Note[] = [];
   const now = new Date();
@@ -71,16 +64,14 @@ function downloadTranscript(note: Note) {
   URL.revokeObjectURL(url);
 }
 
-// --------------------------------------
-// 🗒️ Note Detail Page
-// --------------------------------------
+//  Note Detail Page
 const NoteDetail: React.FC<{ note: Note; onBack: () => void }> = ({
   note,
   onBack,
 }) => {
   return (
-    <div className="bg-gray-100 h-full flex flex-col overflow-hidden">
-      <Header mode={mode} userName={userName} onLogout={handleLogout} />
+    <div className="bg-gray-100 h-screen flex flex-col ">
+      <Header />
       <main className="px-8 py-6 pt-32 flex justify-center items-center">
         <div className="w-full max-w-3xl">
           <button
@@ -127,6 +118,8 @@ const NoteDetail: React.FC<{ note: Note; onBack: () => void }> = ({
 // 📄 Notes List Page
 // --------------------------------------
 const NotesPage: React.FC = () => {
+  const { user } = useAuth();
+  const userName = user?.displayName;
   const fakeNotes = generateFakeNotes();
   const groupedNotes = groupNotesByDate(fakeNotes);
   const allNotes = Object.entries(groupedNotes).flatMap(([date, notes]) =>
@@ -154,11 +147,11 @@ const NotesPage: React.FC = () => {
 
   return (
     <div className="bg-gray-100 h-screen flex flex-col overflow-hidden">
-      <Header mode={mode} userName={userName} onLogout={handleLogout} />
+      <Header />
       <main className="pt-32 flex justify-center px-8 py-6 items-center">
         <div className="w-full max-w-3xl">
           <h2 className="text-lg font-medium text-gray-700 mb-5 h-8">
-            Welcome, Johnny
+            Welcome, {userName}
           </h2>
           <div className="bg-white rounded-2xl shadow-sm p-8 h-[580px] flex flex-col justify-between">
             <div className="space-y-6">
