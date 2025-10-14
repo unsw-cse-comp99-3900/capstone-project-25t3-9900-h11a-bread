@@ -1,4 +1,4 @@
-import React, { useState} from "react";
+import React, { useState } from "react";
 import { format } from "date-fns";
 import { Download, ArrowLeft } from "lucide-react";
 import Header from "./Header";
@@ -13,9 +13,9 @@ interface Note {
 
 const userName = "Johnny";
 const mode = "afterLogin";
-const handleLogout = () =>{
-  console.log("user logged out")
-}
+const handleLogout = () => {
+  console.log("user logged out");
+};
 
 // --------------------------------------
 // 🧩 Utility Functions
