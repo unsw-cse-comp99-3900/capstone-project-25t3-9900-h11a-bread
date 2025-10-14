@@ -4,6 +4,7 @@ import { RealtimeClient } from "@speechmatics/real-time-client";
 import { createSpeechmaticsJWT } from "@speechmatics/auth";
 import AccentDropdown from "./AccentDropdown";
 import Button from "./Button";
+import { Download } from "lucide-react";
 
 const Home: React.FC = () => {
   const [isRecording, setIsRecording] = useState(false);
@@ -12,9 +13,22 @@ const Home: React.FC = () => {
   const clientRef = useRef<RealtimeClient | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const [isStarted, setIsStarted] = useState<boolean>(false);
 
   const API_KEY = import.meta.env.VITE_SPEECHMATICS_API_KEY;
 
+  const handleDownload = ({ transcript }: { transcript: string }) => {
+    const blob = new Blob([transcript], { type: "text/plain" });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "transcript.txt";
+    link.click();
+    window.URL.revokeObjectURL(url);
+  };
+  const handleToggle = () => {
+    setIsStarted((prev) => !prev);
+  };
   const startRecording = async () => {
     try {
       setError("");
@@ -169,20 +183,51 @@ const Home: React.FC = () => {
     <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center">
       <Header />
       <main className="flex justify-center items-center">
-        <div className="container">
-          <Button
-            title={isRecording ? "Stop Recording" : "Start Recording"}
-            className={`${isRecording ? "recording" : ""}`}
-            onClick={handleButtonClick}
-          />
-          {error && <div className="error">{error}</div>}
-
-          {transcript && (
-            <div className="mt-5">
-              <div className="transcript">{transcript}</div>
-            </div>
-          )}
+        <div
+          className={`bg-white rounded-2xl shadow-md p-10 w-[320px] h-[580px] flex flex-col items-center justify-center transition-all duration-700 ease-in-out mt-[52px]
+         `}
+        >
+          <AccentDropdown />
+          <div className="h-full">
+            <button
+              onClick={() => {
+                handleToggle();
+                handleButtonClick();
+              }}
+              className="relative w-40 h-40 rounded-full bg-blue-400 text-white text-2xl font-semibold shadow-lg hover:bg-blue-500 transition-all mt-30"
+            >
+              {isStarted ? "Stop" : "Start"}
+            </button>
+          </div>
         </div>
+        {isStarted && (
+          <div className="w-[500px] h-[580px] mt-[52px] flex flex-col overflow-hidden justify-between">
+            {/* Header */}
+            <div>
+              <div className=" pb-2 px-10">
+                <p className="text-gray-700 text-lg font-semibold">
+                  Transcript
+                </p>
+              </div>
+
+              {/* Scrollable content */}
+              <div className="h-[420px] overflow-y-auto px-10 text-gray-700 leading-relaxed whitespace-pre-line">
+                {transcript}
+              </div>
+            </div>
+            <div className="">
+              <button
+                className=" w-[250px] bg-blue-500 text-white text-sm px-4 py-2 rounded-full hover:bg-blue-600 transition flex items-center gap-2 justify-center ml-[200px]"
+                onClick={() => {
+                  handleDownload({ transcript });
+                }}
+              >
+                <Download className="w-4 h-4" />
+                Save Transcript
+              </button>{" "}
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );
