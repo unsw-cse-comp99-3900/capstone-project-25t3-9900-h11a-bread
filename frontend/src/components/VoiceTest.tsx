@@ -17,9 +17,8 @@ const VoiceTest: React.FC = () => {
   // WebSocket connection
   const connectWebSocket = () => {
     try {
-      // Use integrated endpoint
+      // Use the integrated VAD + Speechmatics WebSocket endpoint
       const wsUrl = "ws://localhost:8000/ws/integrated";
-      console.log(`Connecting to: ${wsUrl}`);
       const ws = new WebSocket(wsUrl);
 
       ws.onopen = async () => {
@@ -28,10 +27,10 @@ const VoiceTest: React.FC = () => {
         // Send configuration as per backend protocol
         const config = {
           sr: 16000,
-          frame_samples: 800, // 50ms frames at 16kHz
+          frame_samples: 480, // 30ms frames at 16kHz
+          subtract_scale: 1.0,
           enable_transcription: true,
           language: "en",
-          audio_filter_volume_threshold: 3.0, // Speechmatics audio filter (0=off, 1-5=mild, 100=remove all)
         };
 
         ws.send(JSON.stringify(config));
@@ -146,9 +145,9 @@ const VoiceTest: React.FC = () => {
           audio: {
             sampleRate: 16000,
             channelCount: 1,
-            echoCancellation: true, // Enable echo cancellation
-            noiseSuppression: true, // Enable noise suppression
-            autoGainControl: true, // Enable auto gain control
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false,
           },
         });
       } catch (specificError) {
@@ -177,20 +176,21 @@ const VoiceTest: React.FC = () => {
         stream.getTracks().length
       );
 
-      // 🔍 Diagnostic log 1: Microphone raw settings
-      const trackSettings = stream.getAudioTracks()[0].getSettings();
-      console.log('📊 Track sampleRate =', trackSettings.sampleRate);
-      console.log('📊 Track channelCount =', trackSettings.channelCount);
-
       // Create audio context for real-time processing
-      // Force 16kHz to avoid resampling quality issues
-      const audioContext = new (window.AudioContext ||
-        (window as any).webkitAudioContext)({ sampleRate: 16000 });
-      
-      console.log(
-        "Audio context created. Sample rate:",
-        audioContext.sampleRate
-      );
+      let audioContext: AudioContext;
+      try {
+        audioContext = new (window.AudioContext ||
+          (window as any).webkitAudioContext)({
+          sampleRate: 16000,
+        });
+      } catch (contextError) {
+        console.warn(
+          "Failed to create context with 16kHz, using default:",
+          contextError
+        );
+        audioContext = new (window.AudioContext ||
+          (window as any).webkitAudioContext)();
+      }
 
       // Resume audio context if suspended (required in some browsers)
       if (audioContext.state === "suspended") {
@@ -199,23 +199,22 @@ const VoiceTest: React.FC = () => {
       }
 
       audioContextRef.current = audioContext;
-      // 🔍 Diagnostic log 2: AudioContext settings
-      console.log('📊 AudioContext.sampleRate =', audioContext.sampleRate);
-      console.log('📊 Declared to backend: sample_rate=16000, encoding=pcm_s16le, mono');
+      console.log(
+        "Audio context created. Sample rate:",
+        audioContext.sampleRate
+      );
 
       const source = audioContext.createMediaStreamSource(stream);
 
       // Use a valid buffer size (must be power of 2 between 256-16384)
+      // We'll use 4096 and split into 480-sample frames for the backend
       const bufferSize = 4096;
       const processor = audioContext.createScriptProcessor(bufferSize, 1, 1);
       processorRef.current = processor;
 
-      // No resampling needed - AudioContext is already 16kHz
-      console.log(`✅ AudioContext is already 16kHz - no resampling needed`);
-
-      // Buffer to accumulate audio data for 800-sample frames (50ms at 16kHz)
+      // Buffer to accumulate audio data for 480-sample frames
       let audioBuffer: Float32Array = new Float32Array(0);
-      const targetFrameSize = 800; // 50ms at 16kHz
+      const targetFrameSize = 480;
 
       processor.onaudioprocess = (event) => {
         if (
@@ -224,7 +223,6 @@ const VoiceTest: React.FC = () => {
         ) {
           const inputBuffer = event.inputBuffer.getChannelData(0);
 
-          // No resampling - directly use the input buffer (already 16kHz)
           // Accumulate audio data
           const newBuffer = new Float32Array(
             audioBuffer.length + inputBuffer.length
@@ -233,32 +231,22 @@ const VoiceTest: React.FC = () => {
           newBuffer.set(inputBuffer, audioBuffer.length);
           audioBuffer = newBuffer;
 
-          // Send 800-sample frames (16kHz, 50ms)
+          // Send 480-sample frames to backend
           while (audioBuffer.length >= targetFrameSize) {
-            // Extract frame
+            // Extract 480 samples
             const frame = audioBuffer.slice(0, targetFrameSize);
 
             // Remove processed samples from buffer
             audioBuffer = audioBuffer.slice(targetFrameSize);
 
-            // Convert Float32 to PCM S16LE (Int16)
-            const int16Buffer = new Int16Array(targetFrameSize);
+            // Ensure values are in [-1, 1] range and send to backend
+            const float32Buffer = new Float32Array(targetFrameSize);
             for (let i = 0; i < targetFrameSize; i++) {
-              // Clamp to [-1, 1] and convert to Int16 [-32768, 32767]
-              const clamped = Math.max(-1.0, Math.min(1.0, frame[i]));
-              int16Buffer[i] = Math.floor(clamped * 32767);
+              float32Buffer[i] = Math.max(-1.0, Math.min(1.0, frame[i]));
             }
 
-            // 🔍 Diagnostic log 3: Sent data (print every ~100 frames)
-            if (Math.random() < 0.01) {
-              console.log('📤 Chunk bytes =', int16Buffer.buffer.byteLength, 
-                         '(expected 1600 for 800 samples * 2 bytes)');
-              console.log('📊 Sample values: min=', Math.min(...int16Buffer), 
-                         'max=', Math.max(...int16Buffer));
-            }
-
-            // Send Int16 buffer to backend
-            websocketRef.current.send(int16Buffer.buffer);
+            // Send 480-sample frame to backend
+            websocketRef.current.send(float32Buffer.buffer);
           }
         }
       };
@@ -509,11 +497,11 @@ const VoiceTest: React.FC = () => {
             <div className="bg-gray-50 p-4 rounded-lg">
               <h4 className="font-semibold mb-2">Audio Configuration:</h4>
               <ul className="text-gray-600 space-y-1">
-                <li>• Sample Rate: 16kHz (native, no resampling)</li>
+                <li>• Sample Rate: 16kHz</li>
                 <li>• Channels: Mono</li>
-                <li>• Format: PCM S16LE (Int16)</li>
-                <li>• Frame Size: 800 samples (50ms)</li>
-                <li>• Browser Processing: Enabled (EC/NS/AGC)</li>
+                <li>• Format: Float32 PCM [-1,1]</li>
+                <li>• Frame Size: 480 samples (30ms)</li>
+                <li>• Browser Processing: Disabled</li>
               </ul>
             </div>
             <div className="bg-gray-50 p-4 rounded-lg">
@@ -531,16 +519,11 @@ const VoiceTest: React.FC = () => {
             <code className="text-xs text-gray-700 block">
               {`{
   "sr": 16000,
-  "frame_samples": 800,
+  "frame_samples": 480,
+  "subtract_scale": 1.0,
   "enable_transcription": true,
-  "language": "en",
-  "audio_filter_volume_threshold": 3.0
-}
-
-// Speechmatics config:
-// encoding: pcm_s16le
-// sample_rate: 16000
-// audio_filtering: volume_threshold=3.0`}
+  "language": "en"
+}`}
             </code>
           </div>
         </div>
