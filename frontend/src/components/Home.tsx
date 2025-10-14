@@ -1,5 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
-import { isUserLoggedIn, getCurrentUser, type User } from "../utils/auth";
+import { useState, useRef } from "react";
 import Header from "./Header";
 import { RealtimeClient } from "@speechmatics/real-time-client";
 import { createSpeechmaticsJWT } from "@speechmatics/auth";
@@ -7,8 +6,6 @@ import AccentDropdown from "./AccentDropdown";
 import Button from "./Button";
 
 const Home: React.FC = () => {
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [error, setError] = useState("");
@@ -168,28 +165,9 @@ const Home: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    // Check authentication status on component mount
-    const loggedIn = isUserLoggedIn();
-    setIsLoggedIn(loggedIn);
-
-    if (loggedIn) {
-      const user = getCurrentUser();
-      setCurrentUser(user);
-    }
-  }, []);
-
-  const handleLogout = useCallback(() => {
-    setIsLoggedIn(false);
-    setCurrentUser(null);
-  }, []);
-
-  const mode = isLoggedIn ? "afterLogin" : "beforeLogin";
-  const userName = currentUser?.displayName || undefined;
-
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center">
-      <Header mode={mode} userName={userName} onLogout={handleLogout} />
+      <Header />
       <main className="flex justify-center items-center">
         <div className="container">
           <Button

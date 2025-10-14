@@ -1,20 +1,21 @@
-import{ useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { FcGoogle } from "react-icons/fc";
 import { signInWithPopup } from "firebase/auth";
 import { auth, provider } from "../firebase/firebase";
-import { isUserLoggedIn } from "../utils/auth";
 import loginPicture from "../assets/login-picture.png";
+import { useAuth } from "../hooks/useAuth";
 
-const Login: JSX.Element= () => {
+const Login: JSX.Element = () => {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   useEffect(() => {
-    if (isUserLoggedIn()) {
+    if (user) {
       navigate("/");
     }
-  }, [navigate]);
+  }, [navigate, user]);
 
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
