@@ -87,6 +87,9 @@ const Home: React.FC = () => {
           language: "en",
           operating_point: "enhanced",
           max_delay: 1.0,
+          audio_filtering_config: {
+            volume_threshold: 1.0,
+          },
           transcript_filtering_config: {
             remove_disfluencies: true,
           },
