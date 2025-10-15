@@ -144,6 +144,7 @@ const NotesPage: React.FC = () => {
   if (!user) {
     navigate("/");
   }
+  if (!user) return null;
 
   if (selectedNote) {
     return (
