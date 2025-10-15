@@ -190,23 +190,64 @@ const Home: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center">
       <Header />
-      <main className="flex justify-center items-center">
+      <main className="p-32 flex justify-center items-center">
         <div
-          className={`bg-white rounded-2xl shadow-md p-10 w-[320px] h-[580px] flex flex-col items-center justify-center transition-all duration-700 ease-in-out mt-[52px]
+          className={`bg-white rounded-2xl shadow-md p-10 w-[320px] h-[580px] flex flex-col items-center justify-center transition-all duration-700 ease-in-out
          `}
         >
           <AccentDropdown />
           <div className="h-full">
             <button
-              onClick={() => {
-                handleButtonClick();
-              }}
+              onClick={handleButtonClick}
               disabled={isLoading}
-              className={`relative w-40 h-40 rounded-full text-white text-2xl font-semibold shadow-lg transition-all mt-30 
-    ${isLoading ? "bg-gray-400 cursor-wait" : "bg-blue-400 hover:bg-blue-500"}
+              className={`relative w-40 h-40 rounded-full text-white text-2xl font-semibold shadow-lg transition-all mt-30
+    ${isLoading ? "bg-gray-400 cursor-wait" : "bg-[#77A4F7] hover:bg-blue-400"}
   `}
             >
-              {isLoading ? "Loading" : isStarted ? "Stop" : "Start"}
+              {/* floating ring 1 */}
+              <span
+                aria-hidden
+                className="pointer-events-none absolute inset-0 rounded-full border border-[#A4B8D3] ring-base ring-1"
+              />
+              {/* floating ring 2 */}
+              <span
+                aria-hidden
+                className="pointer-events-none absolute -inset-1.5 rounded-full border border-[#B6C3F1] ring-base ring-2"
+              />
+
+              <span className="relative z-10">
+                {isLoading ? "Loading" : isStarted ? "Stop" : "Start"}
+              </span>
+
+              {/* local styles – keep Tailwind untouched */}
+              <style>
+                {`
+      .ring-base {; transform-origin: center; }
+      .ring-1 { animation: btn-float-1 3s ease-in-out infinite;  }
+      .ring-2 { animation: btn-float-2 2s ease-in-out infinite, btn-spin 28s linear infinite; }
+
+      @keyframes btn-float-1 {
+        0%   { transform: translate(0, 0) scale(1) rotate(0deg); }
+        50%  { transform: translate(6px, -8px) scale(1.03) rotate(6deg); }
+        75%  { transform: translate(3px, -8px) scale(1.03) rotate(6deg); }
+        100% { transform: translate(0, 0) scale(1) rotate(0deg); }
+      }
+      @keyframes btn-float-2 {
+        0%   { transform: translate(0, 0) scale(1) rotate(0deg); }
+        50%  { transform: translate(-6px, 8px) scale(0.985) rotate(-6deg); }
+        75%  { transform: translate(-3px, -8px) scale(1.03) rotate(6deg); }
+        100% { transform: translate(0, 0) scale(1) rotate(0deg); }
+      }
+      @keyframes btn-spin {
+        to { transform: rotate(360deg); }
+      }
+
+      /* Respect reduced motion */
+      @media (prefers-reduced-motion: reduce) {
+        .ring-1, .ring-2 { animation: none !important; }
+      }
+    `}
+              </style>
             </button>
           </div>
         </div>
@@ -228,7 +269,7 @@ const Home: React.FC = () => {
             {!isStarted && (
               <div>
                 <button
-                  className=" w-[250px] bg-blue-500 text-white text-sm px-4 py-2 rounded-full hover:bg-blue-600 transition flex items-center gap-2 justify-center ml-[200px]"
+                  className=" w-[250px] bg-[#77A4F7] text-white text-sm px-4 py-2 rounded-full hover:bg-blue-400 transition flex items-center gap-2 justify-center ml-[200px]"
                   onClick={() => {
                     handleDownload({ transcript });
                   }}
