@@ -3,6 +3,7 @@ import { format } from "date-fns";
 import { Download, ArrowLeft } from "lucide-react";
 import Header from "./Header";
 import { useAuth } from "../hooks/useAuth";
+import { useNavigate } from "react-router-dom";
 
 interface Note {
   id: number;
@@ -121,6 +122,7 @@ const NotesPage: React.FC = () => {
   const { user } = useAuth();
   const userName = user?.displayName;
   const fakeNotes = generateFakeNotes();
+  const navigate = useNavigate();
   const groupedNotes = groupNotesByDate(fakeNotes);
   const allNotes = Object.entries(groupedNotes).flatMap(([date, notes]) =>
     notes.map((n) => ({ ...n, dateLabel: date }))
@@ -138,6 +140,11 @@ const NotesPage: React.FC = () => {
   }, {} as Record<string, Note[]>);
 
   const [selectedNote, setSelectedNote] = useState<Note | null>(null);
+
+  if (!user) {
+    navigate("/");
+  }
+  if (!user) return null;
 
   if (selectedNote) {
     return (
