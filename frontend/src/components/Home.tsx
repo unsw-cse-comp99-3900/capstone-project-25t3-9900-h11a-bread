@@ -187,9 +187,11 @@ const Home: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center">
       <Header />
-      <main className="flex justify-center items-center">
+      <main className="flex flex-col lg:flex-row justify-center items-center">
         <div
-          className={`bg-white rounded-2xl shadow-md p-10 w-[320px] h-[580px] flex flex-col items-center justify-center transition-all duration-700 ease-in-out mt-[52px]
+          className={`bg-white rounded-2xl shadow-md p-10 w-[320px] ${
+            hasStarted ? "h-[280px]" : "h-[580px]"
+          } lg:h-[580px] flex flex-col items-center justify-center transition-all duration-700 ease-in-out mt-[52px]
          `}
         >
           <AccentDropdown />
@@ -199,7 +201,9 @@ const Home: React.FC = () => {
                 handleButtonClick();
               }}
               disabled={isLoading}
-              className={`relative w-40 h-40 rounded-full text-white text-2xl font-semibold shadow-lg transition-all mt-30 
+              className={`relative w-40 h-40 rounded-full text-white text-2xl font-semibold shadow-lg transition-all ${
+                hasStarted ? "mt-5" : "mt-30"
+              } lg:mt-30 
     ${isLoading ? "bg-gray-400 cursor-wait" : "bg-blue-400 hover:bg-blue-500"}
   `}
             >
@@ -208,33 +212,33 @@ const Home: React.FC = () => {
           </div>
         </div>
         {hasStarted && (
-          <div className="w-[500px] h-[580px] mt-[52px] flex flex-col overflow-hidden justify-between">
+          <div className="w-full max-w-[500px] h-[300px] mt-10 lg:h-[580px] lg:mt-[52px]  flex flex-col overflow-hidden justify-between">
             {/* Header */}
             <div>
-              <div className=" pb-2 px-10">
-                <p className="text-gray-700 text-lg font-semibold">
+              <div className=" pb-2 ">
+                <p className="text-gray-700 text-lg font-semibold lg:px-10">
                   Transcript
                 </p>
               </div>
 
               {/* Scrollable content */}
-              <div className="h-[420px] overflow-y-auto px-10 text-gray-700 leading-relaxed whitespace-pre-line">
+              <div className="lg:h-[420px] h-[220px] overflow-y-auto lg:px-10 text-gray-700 leading-relaxed whitespace-pre-line">
                 {transcript}
               </div>
             </div>
-            {!isStarted && (
-              <div>
-                <button
-                  className=" w-[250px] bg-blue-500 text-white text-sm px-4 py-2 rounded-full hover:bg-blue-600 transition flex items-center gap-2 justify-center ml-[200px]"
-                  onClick={() => {
-                    handleDownload({ transcript });
-                  }}
-                >
-                  <Download className="w-4 h-4" />
-                  Save Transcript
-                </button>
-              </div>
-            )}
+            <div
+              className={`flex justify-center ${isStarted ? "opacity-0" : ""}`}
+            >
+              <button
+                className=" w-[250px] bg-blue-500 text-white text-sm px-4 py-2 rounded-full hover:bg-blue-600 transition flex items-center gap-2 justify-center lg:ml-[200px]"
+                onClick={() => {
+                  handleDownload({ transcript });
+                }}
+              >
+                <Download className="w-4 h-4" />
+                Save Transcript
+              </button>
+            </div>
           </div>
         )}
       </main>
