@@ -3,7 +3,6 @@ import Header from "./Header";
 import { RealtimeClient } from "@speechmatics/real-time-client";
 import { createSpeechmaticsJWT } from "@speechmatics/auth";
 import AccentDropdown from "./AccentDropdown";
-import Button from "./Button";
 import { Download } from "lucide-react";
 
 const Home: React.FC = () => {
@@ -14,6 +13,7 @@ const Home: React.FC = () => {
   const clientRef = useRef<RealtimeClient | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const workletNodeRef = useRef<AudioWorkletNode | null>(null);
   const [isStarted, setIsStarted] = useState<boolean>(false);
   const [hasStarted, setHasStarted] = useState(false);
 
@@ -45,19 +45,18 @@ const Home: React.FC = () => {
       const client = new RealtimeClient();
       clientRef.current = client;
 
-      // Set up event listener for transcription
+      // Append text for every received message
       client.addEventListener("receiveMessage", ({ data }) => {
         if (data.message === "AddTranscript") {
           for (const result of data.results) {
             setTranscript((prev) => {
+              // From previous text
               let newText = prev;
-              if (result.type === "word" && prev !== "") {
-                newText += " ";
-              }
+              // If new word and its not the first word, add a space
+              if (result.type === "word" && prev !== "") newText += " ";
+
+              // Gets the word "guess" with highest probability
               newText += result.alternatives?.[0]?.content || "";
-              if (result.is_eos) {
-                newText += "\n";
-              }
               return newText;
             });
           }
@@ -69,11 +68,11 @@ const Home: React.FC = () => {
         }
       });
 
-      // Generate JWT
+      // Generate JWT using Speechmatics
       const jwt = await createSpeechmaticsJWT({
         type: "rt",
         apiKey: API_KEY,
-        ttl: 3600, // 1 hour
+        ttl: 3600,
       });
 
       // Start the client with audio format configuration
@@ -93,7 +92,7 @@ const Home: React.FC = () => {
         },
       });
 
-      // Get microphone access with specific constraints for 16kHz
+      // Get microphone access
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           channelCount: 1,
@@ -104,29 +103,26 @@ const Home: React.FC = () => {
       });
       mediaStreamRef.current = stream;
 
-      // Set up audio processing with 16kHz sample rate
+      // Set up audio processing
       const audioContext = new (window.AudioContext ||
         (window as any).webkitAudioContext)({
         sampleRate: 16000,
       });
       audioContextRef.current = audioContext;
+
+      // Load the AudioWorklet module and setup worklet node
+      await audioContext.audioWorklet.addModule('/audio-processor.js');
       const source = audioContext.createMediaStreamSource(stream);
-      const processor = audioContext.createScriptProcessor(4096, 1, 1);
+      const workletNode = new AudioWorkletNode(audioContext, 'audio-processor');
+      workletNodeRef.current = workletNode;
 
-      source.connect(processor);
-      processor.connect(audioContext.destination);
-
-      processor.onaudioprocess = (e) => {
-        const inputData = e.inputBuffer.getChannelData(0);
-        // Convert float32 to int16 PCM
-        const int16Array = new Int16Array(inputData.length);
-        for (let i = 0; i < inputData.length; i++) {
-          const s = Math.max(-1, Math.min(1, inputData[i]));
-          int16Array[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
-        }
-        // Send raw PCM data
-        client.sendAudio(int16Array.buffer);
+      // Handle processed audio data
+      workletNode.port.onmessage = (event) => {
+        const int16Buffer = event.data;
+        client.sendAudio(int16Buffer);
       };
+
+      source.connect(workletNode);
 
       setIsRecording(true);
     } catch (err) {
@@ -143,6 +139,13 @@ const Home: React.FC = () => {
 
   const stopRecording = () => {
     try {
+      // Disconnect and clean up worklet node
+      if (workletNodeRef.current) {
+        workletNodeRef.current.disconnect();
+        workletNodeRef.current.port.onmessage = null;
+        workletNodeRef.current = null;
+      }
+
       // Stop the client
       if (clientRef.current) {
         clientRef.current.stopRecognition({ noTimeout: true });
