@@ -75,7 +75,7 @@ const Home: React.FC = () => {
         ttl: 3600,
       });
 
-      // Start the client with audio format configuration
+      // Start the client with audio format configuration (provided in docs)
       await client.start(jwt, {
         audio_format: {
           type: "raw",
@@ -103,7 +103,11 @@ const Home: React.FC = () => {
       });
       mediaStreamRef.current = stream;
 
-      // Set up audio processing
+      // Set up audio processing using AudioWorklet API
+      // Speechmatics expects Int16Array audio data
+
+      // Process: Microphone -> MediaStreamSource -> AudioWorkletNode converts audio to Int16Array
+      // -> port.onmessage -> client.sendAudio() -> Speechmatics API
       const audioContext = new (window.AudioContext ||
         (window as any).webkitAudioContext)({
         sampleRate: 16000,
