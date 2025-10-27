@@ -7,6 +7,7 @@ import {
   doc,
   deleteDoc,
   getDoc,
+  updateDoc,
 } from "firebase/firestore";
 import { db } from "../firebase/firebase";
 import type { User } from "firebase/auth";
@@ -82,6 +83,28 @@ export function useTranscripts(user: User | null) {
     await fetchTranscripts();
   };
 
+  // update an existing transcript
+  const updateTranscript = async (
+    transcriptId: string,
+    updates: { notesName?: string; notesContent?: string }
+  ) => {
+    if (!user) return;
+    try {
+      console.log("11111");
+      const transcriptRef = doc(
+        db,
+        "users",
+        user.uid,
+        "transcripts",
+        transcriptId
+      );
+      await updateDoc(transcriptRef, updates);
+      await fetchTranscripts();
+    } catch (error) {
+      console.error("Error updating transcript:", error);
+    }
+  };
+
   //reload
   useEffect(() => {
     if (user) fetchTranscripts();
@@ -94,5 +117,6 @@ export function useTranscripts(user: User | null) {
     deleteTranscript,
     fetchTranscripts,
     fetchTranscriptById,
+    updateTranscript,
   };
 }

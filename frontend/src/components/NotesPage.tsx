@@ -1,21 +1,21 @@
 import React, { useEffect, useState } from "react";
 import { format } from "date-fns";
-import { Download, ArrowLeft } from "lucide-react";
+import { Download, ArrowLeft, Edit3, Check, X, Save } from "lucide-react";
 import Header from "./Header";
 import { useAuth } from "../hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { useTranscripts } from "../hooks/useTranscripts";
 
 interface Note {
-  id: number;
+  id: string;
   notesContent: string;
-  notesName: Date;
-  recordedAt: number;
+  notesName: string;
+  recordedAt: Date;
 }
 
 function groupNotesByDate(notes: Note[]): Record<string, Note[]> {
   return notes.reduce((groups, note) => {
-    const dateKey = format(note.createdAt, "EEEE, MMM d");
+    const dateKey = format(note.recordedAt, "EEEE, MMM d");
     if (!groups[dateKey]) groups[dateKey] = [];
     groups[dateKey].push(note);
     return groups;
@@ -33,13 +33,16 @@ function formatDuration(seconds: number) {
 }
 
 function downloadTranscript(note: Note) {
-  const blob = new Blob([note.transcript], {
+  const blob = new Blob([note.notesContent], {
     type: "text/plain;charset=utf-8",
   });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `${note.name}_${format(note.createdAt, "yyyyMMdd_HHmmss")}.txt`;
+  a.download = `${note.notesName}_${format(
+    note.recordedAt,
+    "yyyyMMdd_HHmmss"
+  )}.txt`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -47,15 +50,44 @@ function downloadTranscript(note: Note) {
 }
 
 //  Note Detail Page
-const NoteDetail: React.FC<{ note: Note; onBack: () => void }> = ({
+interface NoteDetailProps {
+  note: Note;
+  onBack: () => void;
+  updateTranscript: (
+    transcriptId: string,
+    updates: { notesName?: string; notesContent?: string }
+  ) => Promise<void>;
+  handleDetail: (id: string) => Promise<void>;
+}
+const NoteDetail: React.FC<NoteDetailProps> = ({
   note,
   onBack,
+  updateTranscript,
+  handleDetail,
 }) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedName, setEditedName] = useState(note.notesName || "");
+  const [editedContent, setEditedContent] = useState(note.notesContent || "");
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    console.log(note.id);
+    await updateTranscript(note.id, {
+      notesName: editedName,
+      notesContent: editedContent,
+    });
+    await handleDetail(note.id);
+    setIsSaving(false);
+    setIsEditing(false);
+  };
+
   return (
-    <div className="bg-gray-100 h-screen flex flex-col ">
+    <div className="bg-gray-100 h-screen flex flex-col">
       <Header />
       <main className="px-8 py-6 pt-32 flex justify-center items-center">
         <div className="w-full max-w-3xl">
+          {/* Back button */}
           <button
             onClick={onBack}
             className="flex items-center text-gray-700 hover:text-gray-900 mb-5 transition"
@@ -64,38 +96,102 @@ const NoteDetail: React.FC<{ note: Note; onBack: () => void }> = ({
             Back
           </button>
 
+          {/* Main card */}
           <div className="bg-white rounded-2xl shadow-sm p-8 h-[580px]">
             <div className="flex items-center justify-between mb-2">
-              <h2 className="text-gray-900 font-semibold text-lg flex items-center">
-                Note
-                <button
-                  onClick={() => downloadTranscript(note)}
-                  className="ml-2 hover:scale-110 transition"
-                  title="Download transcript"
-                >
-                  <Download className="w-4 h-4 text-gray-600" />
-                </button>
-              </h2>
+              {/* Title */}
+              {isEditing ? (
+                <input
+                  type="text"
+                  value={editedName}
+                  onChange={(e) => setEditedName(e.target.value)}
+                  className="border border-gray-300 rounded-lg px-2 py-1 text-lg font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-400 w-[70%]"
+                />
+              ) : (
+                <h2 className="text-gray-900 font-semibold text-lg flex items-center">
+                  {note.notesName}
+                </h2>
+              )}
+
+              {/* Action buttons */}
+              <div className="flex items-center gap-2">
+                {!isEditing && (
+                  <>
+                    <button
+                      onClick={() => downloadTranscript(note)}
+                      className="hover:scale-110 transition"
+                      title="Download transcript"
+                    >
+                      <Download className="w-5 h-5 text-gray-600" />
+                    </button>
+
+                    <button
+                      onClick={() => setIsEditing(true)}
+                      className="hover:scale-110 transition"
+                      title="Edit transcript"
+                    >
+                      <Edit3 className="w-5 h-5 text-gray-600" />
+                    </button>
+                  </>
+                )}
+
+                {isEditing && (
+                  <>
+                    <button
+                      onClick={handleSave}
+                      disabled={isSaving}
+                      className="hover:scale-110 transition text-green-600"
+                      title="Save changes"
+                    >
+                      <Save className="w-5 h-5" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        setIsEditing(false);
+                        setEditedName(note.notesName);
+                        setEditedContent(note.notesContent);
+                      }}
+                      className="hover:scale-110 transition text-red-500"
+                      title="Cancel edit"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
 
+            {/* Date */}
             <p className="text-sm text-gray-500 mb-4">
-              {format(note.recordedAt, "h:mma, MMM d, yyyy").toLowerCase()}
+              {note.recordedAt
+                ? format(
+                    new Date(note.recordedAt),
+                    "h:mma, MMM d, yyyy"
+                  ).toLowerCase()
+                : ""}
             </p>
 
-            <div
-              className="text-gray-800 text-[15px] leading-relaxed whitespace-pre-line 
-             
-             max-h-[70vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 h-[415px] my-5"
-            >
-              {note.notesContent}
-            </div>
+            {/* Content area */}
+            {isEditing ? (
+              <textarea
+                value={editedContent}
+                onChange={(e) => setEditedContent(e.target.value)}
+                className="w-full h-[415px] border border-gray-300 rounded-lg p-3 text-gray-800 text-[15px] leading-relaxed focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
+              />
+            ) : (
+              <div
+                className="text-gray-800 text-[15px] leading-relaxed whitespace-pre-line 
+                max-h-[70vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 h-[415px] my-5"
+              >
+                {note.notesContent}
+              </div>
+            )}
           </div>
         </div>
       </main>
     </div>
   );
 };
-
 // --------------------------------------
 // 📄 Notes List Page
 // --------------------------------------
@@ -103,8 +199,13 @@ const NotesPage: React.FC = () => {
   const { user } = useAuth();
   const userName = user?.displayName;
   const navigate = useNavigate();
-  const { fetchTranscripts, transcripts, loading, fetchTranscriptById } =
-    useTranscripts(user);
+  const {
+    fetchTranscripts,
+    transcripts,
+    loading,
+    fetchTranscriptById,
+    updateTranscript,
+  } = useTranscripts(user);
 
   useEffect(() => {
     if (user) fetchTranscripts();
@@ -118,8 +219,14 @@ const NotesPage: React.FC = () => {
     startIndex,
     startIndex + itemsPerPage
   );
+  const groupedNotes = groupNotesByDate(
+    paginatedNotes.map((n) => ({
+      ...n,
+      createdAt: n.recordedAt,
+    }))
+  );
 
-  const [selectedNote, setSelectedNote] = useState<Transcript | null>(null);
+  const [selectedNote, setSelectedNote] = useState<Note | null>(null);
 
   const handleDetail = async (id: string) => {
     const fullNote = await fetchTranscriptById(id);
@@ -133,7 +240,12 @@ const NotesPage: React.FC = () => {
 
   if (selectedNote) {
     return (
-      <NoteDetail note={selectedNote} onBack={() => setSelectedNote(null)} />
+      <NoteDetail
+        note={selectedNote}
+        onBack={() => setSelectedNote(null)}
+        updateTranscript={updateTranscript}
+        handleDetail={handleDetail}
+      />
     );
   }
 
@@ -157,40 +269,40 @@ const NotesPage: React.FC = () => {
               </div>
             ) : (
               <div className="space-y-6">
-                <h3 className="text-gray-600 font-semibold mb-2">
-                  My Transcripts
-                </h3>
-                <div className="flex flex-col gap-2">
-                  {paginatedNotes.map((note) => (
-                    <div
-                      key={note.id}
-                      className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-2 hover:bg-gray-100 transition cursor-pointer"
-                      onClick={() => {
-                        handleDetail(note.id);
-                      }}
-                    >
-                      <div className="flex flex-col">
-                        <div className="text-gray-900 font-medium text-sm">
-                          {note.notesName}{" "}
-                          <span className="text-gray-500 text-xs ml-1">
-                            {note.recordedAt ? formatTime(note.recordedAt) : ""}
-                          </span>
+                {Object.entries(groupedNotes).map(([date, notes]) => (
+                  <div key={date}>
+                    <h3 className="text-gray-600 font-semibold mb-2">{date}</h3>
+                    <div className="flex flex-col gap-2">
+                      {notes.map((note) => (
+                        <div
+                          key={note.id}
+                          className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-2 hover:bg-gray-100 transition cursor-pointer"
+                          onClick={() => handleDetail(note.id)}
+                        >
+                          <div className="flex flex-col">
+                            <div className="text-gray-900 font-medium text-sm">
+                              {note.notesName}{" "}
+                              <span className="text-gray-500 text-xs ml-1">
+                                {formatTime(new Date(note.recordedAt))}
+                              </span>
+                            </div>
+                            <div className="text-gray-400 text-xs">11:11</div>
+                          </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              downloadTranscript(note);
+                            }}
+                            className="ml-2 hover:scale-110 transition"
+                            title="Download transcript"
+                          >
+                            <Download className="w-4 h-4 text-gray-400" />
+                          </button>
                         </div>
-                        <div className="text-gray-400 text-xs">11:11</div>
-                      </div>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          downloadTranscript(note);
-                        }}
-                        className="ml-2 hover:scale-110 transition"
-                        title="Download transcript"
-                      >
-                        <Download className="w-4 h-4 text-gray-400" />
-                      </button>
+                      ))}
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ))}
               </div>
             )}
 
