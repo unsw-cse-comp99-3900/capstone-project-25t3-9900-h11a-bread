@@ -1,35 +1,16 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { format } from "date-fns";
 import { Download, ArrowLeft } from "lucide-react";
 import Header from "./Header";
 import { useAuth } from "../hooks/useAuth";
 import { useNavigate } from "react-router-dom";
+import { useTranscripts } from "../hooks/useTranscripts";
 
 interface Note {
   id: number;
-  name: string;
-  createdAt: Date;
-  durationSec: number;
-  transcript: string;
-}
-
-// Utility Functions
-function generateFakeNotes(): Note[] {
-  const notes: Note[] = [];
-  const now = new Date();
-  for (let i = 0; i < 30; i++) {
-    const date = new Date(now);
-    date.setDate(now.getDate() - Math.floor(i / 3));
-    date.setHours(12, 55, 0);
-    notes.push({
-      id: i + 1,
-      name: "Note",
-      createdAt: date,
-      durationSec: 115,
-      transcript: `SpeakerA: Today we are going to talk about communication in our daily lives, and not just the simple exchange of words, but the deeper meaning behind how we connect with each other...\n\nSpeakerB: Think about a time when you felt completely understood—what made that moment work so well?\n\nSpeakerA: On the other hand, remember a time when communication broke down—what was missing?SpeakerA: Today we are going to talk about communication in our daily lives, and not just the simple exchange of words, but the deeper meaning behind how we connect with each other...\n\nSpeakerB: Think about a time when you felt completely understood—what made that moment work so well?\n\nSpeakerA: On the other hand, remember a time when communication broke down—what was missing?SpeakerA: Today we are going to talk about communication in our daily lives, and not just the simple exchange of words, but the deeper meaning behind how we connect with each other...\n\nSpeakerB: Think about a time when you felt completely understood—what made that moment work so well?\n\nSpeakerA: On the other hand, remember a time when communication broke down—what was missing?SpeakerA: Today we are going to talk about communication in our daily lives, and not just the simple exchange of words, but the deeper meaning behind how we connect with each other...\n\nSpeakerB: Think about a time when you felt completely understood—what made that moment work so well?\n\nSpeakerA: On the other hand, remember a time when communication broke down—what was missing?`,
-    });
-  }
-  return notes;
+  notesContent: string;
+  notesName: Date;
+  recordedAt: number;
 }
 
 function groupNotesByDate(notes: Note[]): Record<string, Note[]> {
@@ -98,7 +79,7 @@ const NoteDetail: React.FC<{ note: Note; onBack: () => void }> = ({
             </div>
 
             <p className="text-sm text-gray-500 mb-4">
-              {format(note.createdAt, "h:mma, MMM d, yyyy").toLowerCase()}
+              {format(note.recordedAt, "h:mma, MMM d, yyyy").toLowerCase()}
             </p>
 
             <div
@@ -106,7 +87,7 @@ const NoteDetail: React.FC<{ note: Note; onBack: () => void }> = ({
              
              max-h-[70vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 h-[415px] my-5"
             >
-              {note.transcript}
+              {note.notesContent}
             </div>
           </div>
         </div>
@@ -121,25 +102,29 @@ const NoteDetail: React.FC<{ note: Note; onBack: () => void }> = ({
 const NotesPage: React.FC = () => {
   const { user } = useAuth();
   const userName = user?.displayName;
-  const fakeNotes = generateFakeNotes();
   const navigate = useNavigate();
-  const groupedNotes = groupNotesByDate(fakeNotes);
-  const allNotes = Object.entries(groupedNotes).flatMap(([date, notes]) =>
-    notes.map((n) => ({ ...n, dateLabel: date }))
-  );
+  const { fetchTranscripts, transcripts, loading, fetchTranscriptById } =
+    useTranscripts(user);
+
+  useEffect(() => {
+    if (user) fetchTranscripts();
+  }, [user]);
 
   const itemsPerPage = 5;
   const [currentPage, setCurrentPage] = useState(1);
-  const totalPages = Math.ceil(allNotes.length / itemsPerPage);
+  const totalPages = Math.ceil(transcripts.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedNotes = allNotes.slice(startIndex, startIndex + itemsPerPage);
-  const paginatedGrouped = paginatedNotes.reduce((acc, note) => {
-    if (!acc[note.dateLabel]) acc[note.dateLabel] = [];
-    acc[note.dateLabel].push(note);
-    return acc;
-  }, {} as Record<string, Note[]>);
+  const paginatedNotes = transcripts.slice(
+    startIndex,
+    startIndex + itemsPerPage
+  );
 
-  const [selectedNote, setSelectedNote] = useState<Note | null>(null);
+  const [selectedNote, setSelectedNote] = useState<Transcript | null>(null);
+
+  const handleDetail = async (id: string) => {
+    const fullNote = await fetchTranscriptById(id);
+    setSelectedNote(fullNote);
+  };
 
   if (!user) {
     navigate("/");
@@ -160,45 +145,54 @@ const NotesPage: React.FC = () => {
           <h2 className="text-lg font-medium text-gray-700 mb-5 h-8">
             Welcome, {userName}
           </h2>
+
           <div className="bg-white rounded-2xl shadow-sm p-8 h-[580px] flex flex-col justify-between">
-            <div className="space-y-6">
-              {Object.entries(paginatedGrouped).map(([date, notes]) => (
-                <div key={date}>
-                  <h3 className="text-gray-600 font-semibold mb-2">{date}</h3>
-                  <div className="flex flex-col gap-2">
-                    {notes.map((note) => (
-                      <div
-                        key={note.id}
-                        className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-2 hover:bg-gray-100 transition cursor-pointer"
-                        onClick={() => setSelectedNote(note)}
-                      >
-                        <div className="flex flex-col">
-                          <div className="text-gray-900 font-medium text-sm">
-                            {note.name}{" "}
-                            <span className="text-gray-500 text-xs ml-1">
-                              {formatTime(note.createdAt)}
-                            </span>
-                          </div>
-                          <div className="text-gray-400 text-xs">
-                            {formatDuration(note.durationSec)}
-                          </div>
+            {loading ? (
+              <div className="flex justify-center items-center h-full text-gray-500">
+                Loading transcripts...
+              </div>
+            ) : transcripts.length === 0 ? (
+              <div className="flex justify-center items-center h-full text-gray-500">
+                No transcripts found.
+              </div>
+            ) : (
+              <div className="space-y-6">
+                <h3 className="text-gray-600 font-semibold mb-2">
+                  My Transcripts
+                </h3>
+                <div className="flex flex-col gap-2">
+                  {paginatedNotes.map((note) => (
+                    <div
+                      key={note.id}
+                      className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-2 hover:bg-gray-100 transition cursor-pointer"
+                      onClick={() => {
+                        handleDetail(note.id);
+                      }}
+                    >
+                      <div className="flex flex-col">
+                        <div className="text-gray-900 font-medium text-sm">
+                          {note.notesName}{" "}
+                          <span className="text-gray-500 text-xs ml-1">
+                            {note.recordedAt ? formatTime(note.recordedAt) : ""}
+                          </span>
                         </div>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            downloadTranscript(note);
-                          }}
-                          className="ml-2 hover:scale-110 transition"
-                          title="Download transcript"
-                        >
-                          <Download className="w-4 h-4 text-gray-400" />
-                        </button>
+                        <div className="text-gray-400 text-xs">11:11</div>
                       </div>
-                    ))}
-                  </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          downloadTranscript(note);
+                        }}
+                        className="ml-2 hover:scale-110 transition"
+                        title="Download transcript"
+                      >
+                        <Download className="w-4 h-4 text-gray-400" />
+                      </button>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </div>
+            )}
 
             {/* Pagination */}
             <div className="flex justify-center items-center gap-4 mt-8">
