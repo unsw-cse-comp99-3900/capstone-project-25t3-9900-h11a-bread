@@ -1,6 +1,14 @@
 import React, { useEffect, useState } from "react";
 import { format } from "date-fns";
-import { Download, ArrowLeft, Edit3, Check, X, Save } from "lucide-react";
+import {
+  Download,
+  ArrowLeft,
+  Edit3,
+  Check,
+  X,
+  Save,
+  Trash2,
+} from "lucide-react";
 import Header from "./Header";
 import { useAuth } from "../hooks/useAuth";
 import { useNavigate } from "react-router-dom";
@@ -58,21 +66,24 @@ interface NoteDetailProps {
     updates: { notesName?: string; notesContent?: string }
   ) => Promise<void>;
   handleDetail: (id: string) => Promise<void>;
+  deleteTranscript: (id: string) => Promise<void>;
 }
+
 const NoteDetail: React.FC<NoteDetailProps> = ({
   note,
   onBack,
   updateTranscript,
   handleDetail,
+  deleteTranscript,
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editedName, setEditedName] = useState(note.notesName || "");
   const [editedContent, setEditedContent] = useState(note.notesContent || "");
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const handleSave = async () => {
     setIsSaving(true);
-    console.log(note.id);
     await updateTranscript(note.id, {
       notesName: editedName,
       notesContent: editedContent,
@@ -80,6 +91,14 @@ const NoteDetail: React.FC<NoteDetailProps> = ({
     await handleDetail(note.id);
     setIsSaving(false);
     setIsEditing(false);
+  };
+
+  const handleDelete = async () => {
+    if (!confirm("Are you sure you want to delete this transcript?")) return;
+    setIsDeleting(true);
+    await deleteTranscript(note.id);
+    setIsDeleting(false);
+    onBack(); // ✅ 删除完成后返回列表页
   };
 
   return (
@@ -98,7 +117,7 @@ const NoteDetail: React.FC<NoteDetailProps> = ({
 
           {/* Main card */}
           <div className="bg-white rounded-2xl shadow-sm p-8 h-[580px]">
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-start justify-between mb-2">
               {/* Title */}
               {isEditing ? (
                 <input
@@ -108,13 +127,13 @@ const NoteDetail: React.FC<NoteDetailProps> = ({
                   className="border border-gray-300 rounded-lg px-2 py-1 text-lg font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-400 w-[70%]"
                 />
               ) : (
-                <h2 className="text-gray-900 font-semibold text-lg flex items-center">
+                <h2 className="text-gray-900 font-semibold text-lg">
                   {note.notesName}
                 </h2>
               )}
 
               {/* Action buttons */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 {!isEditing && (
                   <>
                     <button
@@ -131,6 +150,15 @@ const NoteDetail: React.FC<NoteDetailProps> = ({
                       title="Edit transcript"
                     >
                       <Edit3 className="w-5 h-5 text-gray-600" />
+                    </button>
+
+                    <button
+                      onClick={handleDelete}
+                      disabled={isDeleting}
+                      className="hover:scale-110 transition text-red-500"
+                      title="Delete transcript"
+                    >
+                      <Trash2 className="w-5 h-5" />
                     </button>
                   </>
                 )}
@@ -151,7 +179,7 @@ const NoteDetail: React.FC<NoteDetailProps> = ({
                         setEditedName(note.notesName);
                         setEditedContent(note.notesContent);
                       }}
-                      className="hover:scale-110 transition text-red-500"
+                      className="hover:scale-110 transition text-gray-500"
                       title="Cancel edit"
                     >
                       <X className="w-5 h-5" />
@@ -205,6 +233,7 @@ const NotesPage: React.FC = () => {
     loading,
     fetchTranscriptById,
     updateTranscript,
+    deleteTranscript,
   } = useTranscripts(user);
 
   useEffect(() => {
@@ -245,6 +274,7 @@ const NotesPage: React.FC = () => {
         onBack={() => setSelectedNote(null)}
         updateTranscript={updateTranscript}
         handleDetail={handleDetail}
+        deleteTranscript={deleteTranscript}
       />
     );
   }
