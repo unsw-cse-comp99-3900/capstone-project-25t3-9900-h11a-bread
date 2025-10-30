@@ -98,7 +98,7 @@ const NoteDetail: React.FC<NoteDetailProps> = ({
     setIsDeleting(true);
     await deleteTranscript(note.id);
     setIsDeleting(false);
-    onBack(); // ✅ 删除完成后返回列表页
+    onBack();
   };
 
   return (
@@ -350,7 +350,7 @@ const NotesPage: React.FC = () => {
               </span>
               <button
                 className="px-3 py-1 rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300 disabled:opacity-40 text-xs"
-                disabled={currentPage === totalPages}
+                disabled={currentPage === totalPages || totalPages === 0}
                 onClick={() => setCurrentPage((p) => p + 1)}
               >
                 Next
