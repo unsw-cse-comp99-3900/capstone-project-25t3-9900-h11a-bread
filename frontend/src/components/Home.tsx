@@ -5,6 +5,8 @@ import { createSpeechmaticsJWT } from "@speechmatics/auth";
 import AccentDropdown from "./AccentDropdown";
 import { Download } from "lucide-react";
 import * as sdk from "microsoft-cognitiveservices-speech-sdk";
+import { useTranscripts } from "../hooks/useTranscripts";
+import { useAuth } from "../hooks/useAuth";
 
 /* ---------- Azure voice map (we always pick the first voice) ---------- */
 const VOICE_MAP = {
@@ -78,6 +80,10 @@ type AccentKey = keyof typeof VOICE_MAP;
 type GenderKey = "male" | "female";
 
 const Home: React.FC = () => {
+  /** Auth and Transcripts */
+  const { user } = useAuth();
+  const { addTranscript } = useTranscripts(user);
+
   /** UI / state */
   const [isLoading, setIsLoading] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -170,18 +176,12 @@ const Home: React.FC = () => {
     const norm = normalize(sentence);
     if (!norm) return;
     
-    console.log("🎤 Attempting to speak:", norm.substring(0, 50));
-    
     if (norm === lastUtteranceRef.current) {
-      console.log("🚫 Duplicate (lastUtterance):", norm.substring(0, 30));
       return;
     }
     if (recentSetRef.current.includes(norm)) {
-      console.log("🚫 Duplicate (recentSet):", norm.substring(0, 30));
       return;
     }
-
-    console.log("✅ Speaking (new):", norm.substring(0, 50));
 
     // serialize synthesis to avoid overlaps / race
     while (ttsBusyRef.current) await new Promise((r) => setTimeout(r, 5));
@@ -256,11 +256,8 @@ const Home: React.FC = () => {
   const processedFinalIds = useRef<Set<string>>(new Set());
 
   async function handleFinalChunk(text: string, resultId?: string) {
-    console.log("📥 handleFinalChunk called:", text.substring(0, 50), "ID:", resultId);
-    
     // Skip if we've already processed this exact final result
     if (resultId && processedFinalIds.current.has(resultId)) {
-      console.log("🚫 Already processed this result ID");
       return;
     }
     if (resultId) {
@@ -289,16 +286,13 @@ const Home: React.FC = () => {
 
     // Add to buffer
     bufferRef.current = (bufferRef.current + " " + text).trim();
-    console.log("📝 Buffer updated to:", bufferRef.current);
     
     // If we just received sentence-ending punctuation, split and speak ALL complete sentences
     if (/[.!?]$/.test(text)) {
-      console.log("🎯 Sentence-ending punctuation detected");
       const tmp = bufferRef.current;
       
       // IMMEDIATELY clear the buffer before processing to prevent next word contamination
       bufferRef.current = "";
-      console.log("📝 Buffer cleared immediately");
       
       const re = /([^.!?]+[.!?])\s*/g;
       let lastEnd = 0;
@@ -313,22 +307,16 @@ const Home: React.FC = () => {
         lastEnd = re.lastIndex;
       }
       
-      console.log("📝 Extracted sentences:", sentences);
-      const remaining = tmp.slice(lastEnd).trim();
-      console.log("📝 Remaining after extraction:", remaining);
-      
       // Speak all complete sentences
       for (const sent of sentences) {
         await speakSentence(sent);
       }
       
       // Restore any incomplete text to buffer (should be empty in most cases)
+      const remaining = tmp.slice(lastEnd).trim();
       if (remaining) {
         bufferRef.current = remaining;
-        console.log("📝 Restored remaining to buffer:", remaining);
       }
-    } else {
-      console.log("⏸️ Waiting for sentence completion...");
     }
   }
 
@@ -352,23 +340,9 @@ const Home: React.FC = () => {
 
       client.addEventListener("receiveMessage", async ({ data }) => {
         if (data.message === "AddTranscript") {
-          // Debug: log all results
-          console.log("Received results:", data.results.length);
-          
           for (const r of data.results) {
-            // Log every result for debugging
-            console.log("Result:", {
-              type: r.type,
-              is_partial: r.is_partial,
-              is_eos: r.is_eos,
-              content: r.alternatives?.[0]?.content?.substring(0, 50),
-              start: r.start_time,
-              end: r.end_time
-            });
-
             // STRICT: Only process if explicitly marked as NOT partial
             if (r.is_partial === true) {
-              console.log("⏭️ Skipping partial");
               continue;
             }
 
@@ -379,11 +353,9 @@ const Home: React.FC = () => {
             const resultId = `${r.start_time || 0}-${r.end_time || 0}-${piece}`;
             
             if (processedFinalIds.current.has(resultId)) {
-              console.log("🚫 Duplicate detected, skipping:", piece.substring(0, 30));
               continue;
             }
             
-            console.log("✅ Processing final:", piece.substring(0, 50));
             await handleFinalChunk(piece, resultId);
           }
         } else if (data.message === "Error") {
@@ -391,10 +363,8 @@ const Home: React.FC = () => {
           setError(`Speechmatics error: ${data.type} ${data.reason || ""}`);
           stopRecording();
         } else if (data.message === "EndOfTranscript") {
-          console.log("📝 End of transcript, flushing any remaining buffer");
           const tail = bufferRef.current.trim();
           if (tail) {
-            console.log("📝 Final flush:", tail);
             await speakSentence(tail);
           }
           bufferRef.current = "";
@@ -412,8 +382,8 @@ const Home: React.FC = () => {
         transcription_config: {
           language: "en",
           operating_point: "standard",
-          max_delay: 1.5, // Increased to get more complete finals
-          enable_partials: false, // Disable partials entirely
+          max_delay: 1.5,
+          enable_partials: false,
           transcript_filtering_config: { remove_disfluencies: true },
         },
       });
@@ -437,11 +407,11 @@ const Home: React.FC = () => {
 
       const source = ac.createMediaStreamSource(stream);
 
-      const preGain = ac.createGain(); // optional boost if needed
+      const preGain = ac.createGain();
       preGain.gain.value = 1.2;
       preGainRef.current = preGain;
 
-      const softMuteGain = ac.createGain(); // soft-mute during TTS
+      const softMuteGain = ac.createGain();
       softMuteGain.gain.value = 1.0;
       softMuteGainRef.current = softMuteGain;
 
@@ -514,6 +484,32 @@ const Home: React.FC = () => {
     }
   };
 
+  const handleButtonClick = () => {
+    if (isRecording) {
+      stopRecording();
+      // Save transcript to Firebase when stopping
+      const combinedTranscript = lines.map((l) => `${l.speaker}: ${l.text}`).join("\n");
+      if (combinedTranscript.trim()) {
+        addTranscript(combinedTranscript);
+      }
+    } else {
+      startRecording();
+    }
+  };
+
+  const handleDownload = () => {
+    const combinedTranscript = lines.map((l) => `${l.speaker}: ${l.text}`).join("\n");
+    const blob = new Blob([combinedTranscript], {
+      type: "text/plain",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "transcript.txt";
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   /** UI helpers */
   const combinedTranscript = lines.map((l) => `${l.speaker}: ${l.text}`).join("\n");
 
@@ -521,8 +517,8 @@ const Home: React.FC = () => {
     <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center">
       <Header />
 
-      <main className="flex justify-center items-center">
-        <div className="bg-white rounded-2xl shadow-md p-10 w-[360px] h-[620px] flex flex-col items-center justify-center mt-[52px]">
+      <main className="p-32 flex justify-center items-center">
+        <div className="bg-white rounded-2xl shadow-md p-10 w-[320px] h-[580px] flex flex-col items-center justify-center">
           <AccentDropdown
             selectedAccent={selectedAccent}
             selectedGender={selectedGender}
@@ -538,48 +534,81 @@ const Home: React.FC = () => {
             }}
           />
 
-          <div className="h-full pt-4">
+          <div className="h-full">
             <button
-              onClick={() => (isRecording ? stopRecording() : startRecording())}
+              onClick={handleButtonClick}
               disabled={isLoading || !selectedAccent}
-              className={`relative w-40 h-40 rounded-full text-white text-2xl font-semibold shadow-lg transition-all mt-30 
+              className={`relative w-40 h-40 rounded-full text-white text-2xl font-semibold shadow-lg transition-all mt-30
                 ${
                   isLoading || !selectedAccent
                     ? "bg-gray-400 cursor-not-allowed"
-                    : "bg-blue-400 hover:bg-blue-500"
+                    : "bg-[#77A4F7] hover:bg-blue-400"
                 }`}
               title={!selectedAccent ? "Select accent first" : ""}
             >
-              {isLoading ? "Loading" : isRecording ? "Stop" : "Start"}
+              {/* floating ring 1 */}
+              <span
+                aria-hidden
+                className="pointer-events-none absolute inset-0 rounded-full border border-[#A4B8D3] ring-base ring-1"
+              />
+              {/* floating ring 2 */}
+              <span
+                aria-hidden
+                className="pointer-events-none absolute -inset-1.5 rounded-full border border-[#B6C3F1] ring-base ring-2"
+              />
+
+              <span className="relative z-10">
+                {isLoading ? "Loading" : isRecording ? "Stop" : "Start"}
+              </span>
+
+              {/* local styles – keep Tailwind untouched */}
+              <style>
+                {`
+      .ring-base { transform-origin: center; }
+      .ring-1 { animation: btn-float-1 3s ease-in-out infinite; }
+      .ring-2 { animation: btn-float-2 2s ease-in-out infinite, btn-spin 28s linear infinite; }
+
+      @keyframes btn-float-1 {
+        0%   { transform: translate(0, 0) scale(1) rotate(0deg); }
+        50%  { transform: translate(6px, -8px) scale(1.03) rotate(6deg); }
+        75%  { transform: translate(3px, -8px) scale(1.03) rotate(6deg); }
+        100% { transform: translate(0, 0) scale(1) rotate(0deg); }
+      }
+      @keyframes btn-float-2 {
+        0%   { transform: translate(0, 0) scale(1) rotate(0deg); }
+        50%  { transform: translate(-6px, 8px) scale(0.985) rotate(-6deg); }
+        75%  { transform: translate(-3px, -8px) scale(1.03) rotate(6deg); }
+        100% { transform: translate(0, 0) scale(1) rotate(0deg); }
+      }
+      @keyframes btn-spin {
+        to { transform: rotate(360deg); }
+      }
+
+      /* Respect reduced motion */
+      @media (prefers-reduced-motion: reduce) {
+        .ring-1, .ring-2 { animation: none !important; }
+      }
+    `}
+              </style>
             </button>
           </div>
         </div>
 
         {hasStarted && (
-          <div className="w-[520px] h-[620px] mt-[52px] flex flex-col overflow-hidden justify-between">
+          <div className="w-[500px] h-[580px] mt-[52px] flex flex-col overflow-hidden justify-between">
             <div>
               <div className="pb-2 px-10">
                 <p className="text-gray-700 text-lg font-semibold">Transcript</p>
               </div>
-              <div className="h-[460px] overflow-y-auto px-10 text-gray-700 leading-relaxed whitespace-pre-wrap">
+              <div className="h-[420px] overflow-y-auto px-10 text-gray-700 leading-relaxed whitespace-pre-line">
                 {combinedTranscript || "…listening"}
               </div>
             </div>
             {!isRecording && (
               <div className="px-10 pb-4">
                 <button
-                  className="w-[250px] bg-blue-500 text-white text-sm px-4 py-2 rounded-full hover:bg-blue-600 transition flex items-center gap-2 justify-center ml-auto"
-                  onClick={() => {
-                    const blob = new Blob([combinedTranscript], {
-                      type: "text/plain",
-                    });
-                    const url = URL.createObjectURL(blob);
-                    const link = document.createElement("a");
-                    link.href = url;
-                    link.download = "transcript.txt";
-                    link.click();
-                    URL.revokeObjectURL(url);
-                  }}
+                  className="w-[250px] bg-[#77A4F7] text-white text-sm px-4 py-2 rounded-full hover:bg-blue-400 transition flex items-center gap-2 justify-center ml-auto"
+                  onClick={handleDownload}
                 >
                   <Download className="w-4 h-4" />
                   Save Transcript
