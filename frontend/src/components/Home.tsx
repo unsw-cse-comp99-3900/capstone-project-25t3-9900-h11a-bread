@@ -5,6 +5,8 @@ import { createSpeechmaticsJWT } from "@speechmatics/auth";
 import AccentDropdown from "./AccentDropdown";
 import Button from "./Button";
 import { Download } from "lucide-react";
+import { useTranscripts } from "../hooks/useTranscripts";
+import { useAuth } from "../hooks/useAuth";
 
 const Home: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -16,6 +18,8 @@ const Home: React.FC = () => {
   const audioContextRef = useRef<AudioContext | null>(null);
   const [isStarted, setIsStarted] = useState<boolean>(false);
   const [hasStarted, setHasStarted] = useState(false);
+  const { user } = useAuth();
+  const { addTranscript } = useTranscripts(user);
 
   const API_KEY = import.meta.env.VITE_SPEECHMATICS_API_KEY;
 
@@ -182,6 +186,7 @@ const Home: React.FC = () => {
     setHasStarted(true);
     if (isRecording) {
       stopRecording();
+      addTranscript(transcript);
     } else {
       startRecording();
     }
