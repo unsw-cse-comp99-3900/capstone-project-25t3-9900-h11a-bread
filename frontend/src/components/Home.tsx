@@ -1,139 +1,436 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import Header from "./Header";
 import { RealtimeClient } from "@speechmatics/real-time-client";
 import { createSpeechmaticsJWT } from "@speechmatics/auth";
 import AccentDropdown from "./AccentDropdown";
-import Button from "./Button";
 import { Download } from "lucide-react";
+import * as sdk from "microsoft-cognitiveservices-speech-sdk";
 import { useTranscripts } from "../hooks/useTranscripts";
 import { useAuth } from "../hooks/useAuth";
 
+/* ---------- Azure voice map (we always pick the first voice) ---------- */
+const VOICE_MAP = {
+  American: {
+    male: [
+      "en-US-GuyNeural",
+      "en-US-BrianNeural",
+      "en-US-JasonNeural",
+      "en-US-BrandonNeural",
+      "en-US-ChristopherNeural",
+    ],
+    female: [
+      "en-US-JennyNeural",
+      "en-US-AriaNeural",
+      "en-US-AnaNeural",
+      "en-US-JaneNeural",
+      "en-US-CoraNeural",
+    ],
+  },
+  British: {
+    male: [
+      "en-GB-RyanNeural",
+      "en-GB-AlfieNeural",
+      "en-GB-ElliotNeural",
+      "en-GB-EthanNeural",
+      "en-GB-OliverNeural",
+    ],
+    female: [
+      "en-GB-LibbyNeural",
+      "en-GB-SoniaNeural",
+      "en-GB-AbbiNeural",
+      "en-GB-BellaNeural",
+      "en-GB-HollieNeural",
+    ],
+  },
+  Australian: {
+    male: [
+      "en-AU-WilliamNeural",
+      "en-AU-KenNeural",
+      "en-AU-DarrenNeural",
+      "en-AU-TimNeural",
+      "en-AU-DuncanNeural",
+    ],
+    female: [
+      "en-AU-NatashaNeural",
+      "en-AU-AnnetteNeural",
+      "en-AU-TinaNeural",
+      "en-AU-FreyaNeural",
+      "en-AU-JoanneNeural",
+    ],
+  },
+  Indian: {
+    male: [
+      "en-IN-PrabhatNeural",
+      "en-IN-ArjunNeural",
+      "en-IN-AaravNeural",
+      "en-IN-KunalNeural",
+      "en-IN-RehaanNeural",
+    ],
+    female: [
+      "en-IN-NeerjaNeural",
+      "en-IN-AnanyaNeural",
+      "en-IN-AartiNeural",
+      "en-IN-AashiNeural",
+      "en-IN-KavyaNeural",
+    ],
+  },
+} as const;
+
+type AccentKey = keyof typeof VOICE_MAP;
+type GenderKey = "male" | "female";
+
 const Home: React.FC = () => {
-  const [isLoading, setIsLoading] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
-  const [transcript, setTranscript] = useState("");
-  const [error, setError] = useState("");
-  const clientRef = useRef<RealtimeClient | null>(null);
-  const mediaStreamRef = useRef<MediaStream | null>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const [isStarted, setIsStarted] = useState<boolean>(false);
-  const [hasStarted, setHasStarted] = useState(false);
+  /** Auth and Transcripts */
   const { user } = useAuth();
   const { addTranscript } = useTranscripts(user);
 
-  const API_KEY = import.meta.env.VITE_SPEECHMATICS_API_KEY;
+  /** UI / state */
+  const [isLoading, setIsLoading] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [hasStarted, setHasStarted] = useState(false);
+  const [error, setError] = useState("");
 
-  const handleDownload = ({ transcript }: { transcript: string }) => {
-    const blob = new Blob([transcript], { type: "text/plain" });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "transcript.txt";
-    link.click();
-    window.URL.revokeObjectURL(url);
-  };
+  /** Transcript (single speaker run) */
+  const [lines, setLines] = useState<Array<{ speaker: string; text: string }>>(
+    []
+  );
 
+  /** STT runtime */
+  const clientRef = useRef<RealtimeClient | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const workletNodeRef = useRef<AudioWorkletNode | null>(null);
+  const preGainRef = useRef<GainNode | null>(null);
+
+  /** Soft-mute during playback (on mic path) */
+  const softMuteGainRef = useRef<GainNode | null>(null);
+
+  /** Selection */
+  const [selectedAccent, setSelectedAccent] = useState<AccentKey | "">("");
+  const [selectedGender, setSelectedGender] = useState<GenderKey>("male");
+
+  /** TTS playback via Web Audio (separate context for output) */
+  const playCtxRef = useRef<AudioContext | null>(null);
+  const [audioQueue, setAudioQueue] = useState<ArrayBuffer[]>([]);
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  /** TTS de-dup guards */
+  const lastUtteranceRef = useRef<string>("");
+  const recentSetRef = useRef<string[]>([]); // rolling window
+
+  /** ENV */
+  const API_KEY = import.meta.env.VITE_SPEECHMATICS_API_KEY as string | undefined;
+  const AZURE_REGION = import.meta.env.VITE_AZURE_REGION as string | undefined;
+  const AZURE_KEY = import.meta.env.VITE_AZURE_SPEECH_API_KEY as
+    | string
+    | undefined;
+
+  /** Helpers */
+  const normalize = (s: string) =>
+    s.toLowerCase().replace(/\s+/g, " ").replace(/[^\S\r\n]/g, " ").trim();
+
+  function pickVoice(): string {
+    if (!selectedAccent) return "";
+    const bank = VOICE_MAP[selectedAccent][selectedGender];
+    return bank?.[0] || ""; // fixed first voice
+  }
+
+  /** Azure TTS -> ArrayBuffer (no auto-play) */
+  async function synthToBuffer(text: string, voiceName: string): Promise<ArrayBuffer> {
+    if (!AZURE_KEY || !AZURE_REGION) throw new Error("Missing Azure config");
+    const speechConfig = sdk.SpeechConfig.fromSubscription(AZURE_KEY, AZURE_REGION);
+    speechConfig.speechSynthesisVoiceName = voiceName;
+
+    // Route audio to a stream (prevents SDK auto-playing to speakers)
+    const outStream = sdk.AudioOutputStream.createPullStream();
+    const audioConfig = sdk.AudioConfig.fromStreamOutput(outStream);
+    const synthesizer = new sdk.SpeechSynthesizer(speechConfig, audioConfig);
+
+    return await new Promise<ArrayBuffer>((resolve, reject) => {
+      synthesizer.speakTextAsync(
+        text,
+        (r) => {
+          try {
+            synthesizer.close();
+          } catch {}
+          if (r.reason === sdk.ResultReason.SynthesizingAudioCompleted) {
+            // r.audioData is an ArrayBuffer of WAV bytes
+            resolve(r.audioData as ArrayBuffer);
+          } else {
+            reject(r.errorDetails || "Azure TTS failed");
+          }
+        },
+        (err) => {
+          try {
+            synthesizer.close();
+          } catch {}
+          reject(err);
+        }
+      );
+    });
+  }
+
+  /** Speak one sentence with de-dup + queue */
+  const ttsBusyRef = useRef(false);
+  async function speakSentence(sentence: string) {
+    const norm = normalize(sentence);
+    if (!norm) return;
+    
+    if (norm === lastUtteranceRef.current) {
+      return;
+    }
+    if (recentSetRef.current.includes(norm)) {
+      return;
+    }
+
+    // serialize synthesis to avoid overlaps / race
+    while (ttsBusyRef.current) await new Promise((r) => setTimeout(r, 5));
+    ttsBusyRef.current = true;
+    try {
+      const voice = pickVoice();
+      if (!voice) return;
+      const buf = await synthToBuffer(sentence, voice);
+      setAudioQueue((q) => [...q, buf]);
+
+      lastUtteranceRef.current = norm;
+      recentSetRef.current = [...recentSetRef.current.slice(-4), norm];
+    } finally {
+      ttsBusyRef.current = false;
+    }
+  }
+
+  /** Playback loop (Web Audio). Soft-mute mic while playing. */
+  useEffect(() => {
+    (async () => {
+      if (isPlaying || audioQueue.length === 0) return;
+
+      // Ensure playback context exists (separate from capture)
+      if (!playCtxRef.current) {
+        playCtxRef.current = new (window.AudioContext ||
+          (window as any).webkitAudioContext)();
+      }
+      const ctx = playCtxRef.current;
+      if (ctx.state === "suspended") {
+        try {
+          await ctx.resume();
+        } catch {}
+      }
+
+      setIsPlaying(true);
+
+      const wavBytes = audioQueue[0];
+      try {
+        const audioBuf = await ctx.decodeAudioData(
+          wavBytes.slice(0) // pass a copy
+        );
+
+        // Soft-mute mic right before starting playback
+        if (softMuteGainRef.current) softMuteGainRef.current.gain.value = 0.0;
+
+        const src = ctx.createBufferSource();
+        src.buffer = audioBuf;
+        src.connect(ctx.destination);
+
+        src.onended = () => {
+          // Unmute mic after playback
+          if (softMuteGainRef.current) softMuteGainRef.current.gain.value = 1.0;
+          setAudioQueue((prev) => prev.slice(1));
+          setIsPlaying(false);
+        };
+
+        // Start precisely at the next stable tick
+        const startAt = ctx.currentTime + 0.03; // ~30ms preroll
+        src.start(startAt);
+      } catch (e) {
+        console.error("Audio decode error:", e);
+        // On decode error, drop this item to keep pipeline moving
+        if (softMuteGainRef.current) softMuteGainRef.current.gain.value = 1.0;
+        setAudioQueue((prev) => prev.slice(1));
+        setIsPlaying(false);
+      }
+    })();
+  }, [audioQueue, isPlaying]);
+
+  /** Sentence buffering (finals only) */
+  const bufferRef = useRef<string>("");
+  const processedFinalIds = useRef<Set<string>>(new Set());
+
+  async function handleFinalChunk(text: string, resultId?: string) {
+    // Skip if we've already processed this exact final result
+    if (resultId && processedFinalIds.current.has(resultId)) {
+      return;
+    }
+    if (resultId) {
+      processedFinalIds.current.add(resultId);
+      // Keep only last 100 IDs to prevent memory leak
+      if (processedFinalIds.current.size > 100) {
+        const arr = Array.from(processedFinalIds.current);
+        processedFinalIds.current = new Set(arr.slice(-100));
+      }
+    }
+
+    // Append to transcript (single speaker)
+    setLines((prev) => {
+      if (prev.length) {
+        const last = prev[prev.length - 1];
+        const merged = {
+          speaker: "S1",
+          text: `${last.text} ${text}`.replace(/\s+/g, " ").trim(),
+        };
+        const clone = [...prev];
+        clone[clone.length - 1] = merged;
+        return clone;
+      }
+      return [{ speaker: "S1", text: text.trim() }];
+    });
+
+    // Add to buffer
+    bufferRef.current = (bufferRef.current + " " + text).trim();
+    
+    // If we just received sentence-ending punctuation, split and speak ALL complete sentences
+    if (/[.!?]$/.test(text)) {
+      const tmp = bufferRef.current;
+      
+      // IMMEDIATELY clear the buffer before processing to prevent next word contamination
+      bufferRef.current = "";
+      
+      const re = /([^.!?]+[.!?])\s*/g;
+      let lastEnd = 0;
+      let m: RegExpExecArray | null;
+      const sentences: string[] = [];
+      
+      while ((m = re.exec(tmp)) !== null) {
+        const sent = m[1].trim();
+        if (sent) {
+          sentences.push(sent);
+        }
+        lastEnd = re.lastIndex;
+      }
+      
+      // Speak all complete sentences
+      for (const sent of sentences) {
+        await speakSentence(sent);
+      }
+      
+      // Restore any incomplete text to buffer (should be empty in most cases)
+      const remaining = tmp.slice(lastEnd).trim();
+      if (remaining) {
+        bufferRef.current = remaining;
+      }
+    }
+  }
+
+  /** Start Recording */
   const startRecording = async () => {
     try {
       setIsLoading(true);
       setError("");
-      setTranscript("");
+      setHasStarted(true);
+      setLines([]);
+      bufferRef.current = "";
+      lastUtteranceRef.current = "";
+      recentSetRef.current = [];
+      processedFinalIds.current.clear();
+      setAudioQueue([]);
 
-      if (!API_KEY) {
-        throw new Error(
-          "Speechmatics API key not configured. Please check your .env file."
-        );
-      }
+      if (!API_KEY) throw new Error("Missing Speechmatics API key");
 
-      // Create a new client
       const client = new RealtimeClient();
       clientRef.current = client;
 
-      // Set up event listener for transcription
-      client.addEventListener("receiveMessage", ({ data }) => {
+      client.addEventListener("receiveMessage", async ({ data }) => {
         if (data.message === "AddTranscript") {
-          for (const result of data.results) {
-            setTranscript((prev) => {
-              let newText = prev;
-              if (result.type === "word" && prev !== "") {
-                newText += " ";
-              }
-              newText += result.alternatives?.[0]?.content || "";
-              if (result.is_eos) {
-                newText += "\n";
-              }
-              return newText;
-            });
+          for (const r of data.results) {
+            // STRICT: Only process if explicitly marked as NOT partial
+            if (r.is_partial === true) {
+              continue;
+            }
+
+            const piece = (r.alternatives?.[0]?.content || "").trim();
+            if (!piece) continue;
+
+            // Use a unique ID to prevent processing the same final twice
+            const resultId = `${r.start_time || 0}-${r.end_time || 0}-${piece}`;
+            
+            if (processedFinalIds.current.has(resultId)) {
+              continue;
+            }
+            
+            await handleFinalChunk(piece, resultId);
           }
-        } else if (data.message === "EndOfTranscript") {
-          console.log("Transcription ended");
         } else if (data.message === "Error") {
-          setError(`Error: ${JSON.stringify(data)}`);
+          console.error("Speechmatics error:", data);
+          setError(`Speechmatics error: ${data.type} ${data.reason || ""}`);
           stopRecording();
+        } else if (data.message === "EndOfTranscript") {
+          const tail = bufferRef.current.trim();
+          if (tail) {
+            await speakSentence(tail);
+          }
+          bufferRef.current = "";
         }
       });
 
-      // Generate JWT
       const jwt = await createSpeechmaticsJWT({
         type: "rt",
         apiKey: API_KEY,
-        ttl: 3600, // 1 hour
+        ttl: 3600,
       });
 
-      // Start the client with audio format configuration
       await client.start(jwt, {
-        audio_format: {
-          type: "raw",
-          encoding: "pcm_s16le",
-          sample_rate: 16000,
-        },
+        audio_format: { type: "raw", encoding: "pcm_s16le", sample_rate: 16000 },
         transcription_config: {
           language: "en",
-          operating_point: "enhanced",
-          max_delay: 1.0,
-          audio_filtering_config: {
-            volume_threshold: 1.0,
-          },
-          transcript_filtering_config: {
-            remove_disfluencies: true,
-          },
+          operating_point: "standard",
+          max_delay: 1.5,
+          enable_partials: false,
+          transcript_filtering_config: { remove_disfluencies: true },
         },
       });
 
-      // Get microphone access with specific constraints for 16kHz
+      // Mic (headphones) + worklet (20ms frames)
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           channelCount: 1,
           sampleRate: 16000,
-          echoCancellation: true,
-          noiseSuppression: true,
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
         },
       });
       mediaStreamRef.current = stream;
 
-      // Set up audio processing with 16kHz sample rate
-      const audioContext = new (window.AudioContext ||
-        (window as any).webkitAudioContext)({
-        sampleRate: 16000,
-      });
-      audioContextRef.current = audioContext;
-      const source = audioContext.createMediaStreamSource(stream);
-      const processor = audioContext.createScriptProcessor(4096, 1, 1);
+      const ac = new (window.AudioContext ||
+        (window as any).webkitAudioContext)({ sampleRate: 16000 });
+      audioContextRef.current = ac;
+      await ac.audioWorklet.addModule("/audio-processor.js");
 
-      source.connect(processor);
-      processor.connect(audioContext.destination);
+      const source = ac.createMediaStreamSource(stream);
 
-      processor.onaudioprocess = (e) => {
-        const inputData = e.inputBuffer.getChannelData(0);
-        // Convert float32 to int16 PCM
-        const int16Array = new Int16Array(inputData.length);
-        for (let i = 0; i < inputData.length; i++) {
-          const s = Math.max(-1, Math.min(1, inputData[i]));
-          int16Array[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+      const preGain = ac.createGain();
+      preGain.gain.value = 1.2;
+      preGainRef.current = preGain;
+
+      const softMuteGain = ac.createGain();
+      softMuteGain.gain.value = 1.0;
+      softMuteGainRef.current = softMuteGain;
+
+      const node = new AudioWorkletNode(ac, "audio-processor");
+      workletNodeRef.current = node;
+      node.port.onmessage = (e) => {
+        if (clientRef.current) {
+          try {
+            clientRef.current.sendAudio(e.data);
+          } catch (err) {
+            console.error("Error sending audio:", err);
+          }
         }
-        // Send raw PCM data
-        client.sendAudio(int16Array.buffer);
       };
+
+      // chain: mic -> preGain -> softMuteGain -> worklet
+      source.connect(preGain);
+      preGain.connect(softMuteGain);
+      softMuteGain.connect(node);
 
       setIsRecording(true);
     } catch (err) {
@@ -148,28 +445,34 @@ const Home: React.FC = () => {
     }
   };
 
+  /** Stop Recording */
   const stopRecording = () => {
     try {
-      // Stop the client
+      if (workletNodeRef.current) {
+        workletNodeRef.current.disconnect();
+        workletNodeRef.current.port.onmessage = null;
+        workletNodeRef.current = null;
+      }
+      if (softMuteGainRef.current) {
+        softMuteGainRef.current.disconnect();
+        softMuteGainRef.current = null;
+      }
+      if (preGainRef.current) {
+        preGainRef.current.disconnect();
+        preGainRef.current = null;
+      }
       if (clientRef.current) {
         clientRef.current.stopRecognition({ noTimeout: true });
         clientRef.current = null;
       }
-
-      // Stop media stream
       if (mediaStreamRef.current) {
-        mediaStreamRef.current
-          .getTracks()
-          .forEach((track: MediaStreamTrack) => track.stop());
+        mediaStreamRef.current.getTracks().forEach((t) => t.stop());
         mediaStreamRef.current = null;
       }
-
-      // Close audio context
       if (audioContextRef.current) {
         audioContextRef.current.close();
         audioContextRef.current = null;
       }
-
       setIsRecording(false);
     } catch (err) {
       console.error("Error stopping recording:", err);
@@ -182,32 +485,66 @@ const Home: React.FC = () => {
   };
 
   const handleButtonClick = () => {
-    setIsStarted((prev) => !prev);
-    setHasStarted(true);
     if (isRecording) {
       stopRecording();
-      addTranscript(transcript);
+      // Save transcript to Firebase when stopping
+      const combinedTranscript = lines.map((l) => `${l.speaker}: ${l.text}`).join("\n");
+      if (combinedTranscript.trim()) {
+        addTranscript(combinedTranscript);
+      }
     } else {
       startRecording();
     }
   };
 
+  const handleDownload = () => {
+    const combinedTranscript = lines.map((l) => `${l.speaker}: ${l.text}`).join("\n");
+    const blob = new Blob([combinedTranscript], {
+      type: "text/plain",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "transcript.txt";
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  /** UI helpers */
+  const combinedTranscript = lines.map((l) => `${l.speaker}: ${l.text}`).join("\n");
+
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center">
       <Header />
+
       <main className="p-32 flex justify-center items-center">
-        <div
-          className={`bg-white rounded-2xl shadow-md p-10 w-[320px] h-[580px] flex flex-col items-center justify-center transition-all duration-700 ease-in-out
-         `}
-        >
-          <AccentDropdown />
+        <div className="bg-white rounded-2xl shadow-md p-10 w-[320px] h-[580px] flex flex-col items-center justify-center">
+          <AccentDropdown
+            selectedAccent={selectedAccent}
+            selectedGender={selectedGender}
+            onAccentChange={(accent) => {
+              setSelectedAccent(accent as AccentKey);
+              lastUtteranceRef.current = "";
+              recentSetRef.current = [];
+            }}
+            onGenderChange={(g) => {
+              setSelectedGender(g as GenderKey);
+              lastUtteranceRef.current = "";
+              recentSetRef.current = [];
+            }}
+          />
+
           <div className="h-full">
             <button
               onClick={handleButtonClick}
-              disabled={isLoading}
+              disabled={isLoading || !selectedAccent}
               className={`relative w-40 h-40 rounded-full text-white text-2xl font-semibold shadow-lg transition-all mt-30
-    ${isLoading ? "bg-gray-400 cursor-wait" : "bg-[#77A4F7] hover:bg-blue-400"}
-  `}
+                ${
+                  isLoading || !selectedAccent
+                    ? "bg-gray-400 cursor-not-allowed"
+                    : "bg-[#77A4F7] hover:bg-blue-400"
+                }`}
+              title={!selectedAccent ? "Select accent first" : ""}
             >
               {/* floating ring 1 */}
               <span
@@ -221,14 +558,14 @@ const Home: React.FC = () => {
               />
 
               <span className="relative z-10">
-                {isLoading ? "Loading" : isStarted ? "Stop" : "Start"}
+                {isLoading ? "Loading" : isRecording ? "Stop" : "Start"}
               </span>
 
               {/* local styles – keep Tailwind untouched */}
               <style>
                 {`
-      .ring-base {; transform-origin: center; }
-      .ring-1 { animation: btn-float-1 3s ease-in-out infinite;  }
+      .ring-base { transform-origin: center; }
+      .ring-1 { animation: btn-float-1 3s ease-in-out infinite; }
       .ring-2 { animation: btn-float-2 2s ease-in-out infinite, btn-spin 28s linear infinite; }
 
       @keyframes btn-float-1 {
@@ -256,28 +593,22 @@ const Home: React.FC = () => {
             </button>
           </div>
         </div>
+
         {hasStarted && (
           <div className="w-[500px] h-[580px] mt-[52px] flex flex-col overflow-hidden justify-between">
-            {/* Header */}
             <div>
-              <div className=" pb-2 px-10">
-                <p className="text-gray-700 text-lg font-semibold">
-                  Transcript
-                </p>
+              <div className="pb-2 px-10">
+                <p className="text-gray-700 text-lg font-semibold">Transcript</p>
               </div>
-
-              {/* Scrollable content */}
               <div className="h-[420px] overflow-y-auto px-10 text-gray-700 leading-relaxed whitespace-pre-line">
-                {transcript}
+                {combinedTranscript || "…listening"}
               </div>
             </div>
-            {!isStarted && (
-              <div>
+            {!isRecording && (
+              <div className="px-10 pb-4">
                 <button
-                  className=" w-[250px] bg-[#77A4F7] text-white text-sm px-4 py-2 rounded-full hover:bg-blue-400 transition flex items-center gap-2 justify-center ml-[200px]"
-                  onClick={() => {
-                    handleDownload({ transcript });
-                  }}
+                  className="w-[250px] bg-[#77A4F7] text-white text-sm px-4 py-2 rounded-full hover:bg-blue-400 transition flex items-center gap-2 justify-center ml-auto"
+                  onClick={handleDownload}
                 >
                   <Download className="w-4 h-4" />
                   Save Transcript
@@ -287,6 +618,12 @@ const Home: React.FC = () => {
           </div>
         )}
       </main>
+
+      {error && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-red-100 text-red-700 px-4 py-2 rounded">
+          {error}
+        </div>
+      )}
     </div>
   );
 };
