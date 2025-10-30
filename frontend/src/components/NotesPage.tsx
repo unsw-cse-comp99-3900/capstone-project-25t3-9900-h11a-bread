@@ -346,7 +346,7 @@ const NotesPage: React.FC = () => {
                 Previous
               </button>
               <span className="text-xs text-gray-600">
-                Page {currentPage} of {totalPages}
+                Page {totalPages != 0 ? currentPage : 0} of {totalPages}
               </span>
               <button
                 className="px-3 py-1 rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300 disabled:opacity-40 text-xs"
