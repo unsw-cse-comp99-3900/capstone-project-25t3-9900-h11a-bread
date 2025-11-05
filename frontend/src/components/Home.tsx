@@ -102,9 +102,6 @@ const Home: React.FC = () => {
   const workletNodeRef = useRef<AudioWorkletNode | null>(null);
   const preGainRef = useRef<GainNode | null>(null);
 
-  /** Soft-mute during playback (on mic path) */
-  const softMuteGainRef = useRef<GainNode | null>(null);
-
   /** Selection */
   const [selectedAccent, setSelectedAccent] = useState<AccentKey | "">("");
   const [selectedGender, setSelectedGender] = useState<GenderKey>("male");
@@ -119,7 +116,9 @@ const Home: React.FC = () => {
   const recentSetRef = useRef<string[]>([]); // rolling window
 
   /** ENV */
-  const API_KEY = import.meta.env.VITE_SPEECHMATICS_API_KEY as string | undefined;
+  const API_KEY = import.meta.env.VITE_SPEECHMATICS_API_KEY as
+    | string
+    | undefined;
   const AZURE_REGION = import.meta.env.VITE_AZURE_REGION as string | undefined;
   const AZURE_KEY = import.meta.env.VITE_AZURE_SPEECH_API_KEY as
     | string
@@ -127,7 +126,11 @@ const Home: React.FC = () => {
 
   /** Helpers */
   const normalize = (s: string) =>
-    s.toLowerCase().replace(/\s+/g, " ").replace(/[^\S\r\n]/g, " ").trim();
+    s
+      .toLowerCase()
+      .replace(/\s+/g, " ")
+      .replace(/[^\S\r\n]/g, " ")
+      .trim();
 
   function pickVoice(): string {
     if (!selectedAccent) return "";
@@ -136,9 +139,15 @@ const Home: React.FC = () => {
   }
 
   /** Azure TTS -> ArrayBuffer (no auto-play) */
-  async function synthToBuffer(text: string, voiceName: string): Promise<ArrayBuffer> {
+  async function synthToBuffer(
+    text: string,
+    voiceName: string
+  ): Promise<ArrayBuffer> {
     if (!AZURE_KEY || !AZURE_REGION) throw new Error("Missing Azure config");
-    const speechConfig = sdk.SpeechConfig.fromSubscription(AZURE_KEY, AZURE_REGION);
+    const speechConfig = sdk.SpeechConfig.fromSubscription(
+      AZURE_KEY,
+      AZURE_REGION
+    );
     speechConfig.speechSynthesisVoiceName = voiceName;
 
     // Route audio to a stream (prevents SDK auto-playing to speakers)
@@ -175,7 +184,7 @@ const Home: React.FC = () => {
   async function speakSentence(sentence: string) {
     const norm = normalize(sentence);
     if (!norm) return;
-    
+
     if (norm === lastUtteranceRef.current) {
       return;
     }
@@ -224,16 +233,11 @@ const Home: React.FC = () => {
           wavBytes.slice(0) // pass a copy
         );
 
-        // Soft-mute mic right before starting playback
-        if (softMuteGainRef.current) softMuteGainRef.current.gain.value = 0.0;
-
         const src = ctx.createBufferSource();
         src.buffer = audioBuf;
         src.connect(ctx.destination);
 
         src.onended = () => {
-          // Unmute mic after playback
-          if (softMuteGainRef.current) softMuteGainRef.current.gain.value = 1.0;
           setAudioQueue((prev) => prev.slice(1));
           setIsPlaying(false);
         };
@@ -244,7 +248,6 @@ const Home: React.FC = () => {
       } catch (e) {
         console.error("Audio decode error:", e);
         // On decode error, drop this item to keep pipeline moving
-        if (softMuteGainRef.current) softMuteGainRef.current.gain.value = 1.0;
         setAudioQueue((prev) => prev.slice(1));
         setIsPlaying(false);
       }
@@ -255,7 +258,11 @@ const Home: React.FC = () => {
   const bufferRef = useRef<string>("");
   const processedFinalIds = useRef<Set<string>>(new Set());
 
-  async function handleFinalChunk(text: string, speaker: string, resultId?: string) {
+  async function handleFinalChunk(
+    text: string,
+    speaker: string,
+    resultId?: string
+  ) {
     // Skip if we've already processed this exact final result
     if (resultId && processedFinalIds.current.has(resultId)) {
       return;
@@ -291,19 +298,19 @@ const Home: React.FC = () => {
 
     // Add to buffer
     bufferRef.current = (bufferRef.current + " " + text).trim();
-    
+
     // If we just received sentence-ending punctuation, split and speak ALL complete sentences
     if (/[.!?]$/.test(text)) {
       const tmp = bufferRef.current;
-      
+
       // IMMEDIATELY clear the buffer before processing to prevent next word contamination
       bufferRef.current = "";
-      
+
       const re = /([^.!?]+[.!?])\s*/g;
       let lastEnd = 0;
       let m: RegExpExecArray | null;
       const sentences: string[] = [];
-      
+
       while ((m = re.exec(tmp)) !== null) {
         const sent = m[1].trim();
         if (sent) {
@@ -311,12 +318,12 @@ const Home: React.FC = () => {
         }
         lastEnd = re.lastIndex;
       }
-      
+
       // Speak all complete sentences
       for (const sent of sentences) {
         await speakSentence(sent);
       }
-      
+
       // Restore any incomplete text to buffer (should be empty in most cases)
       const remaining = tmp.slice(lastEnd).trim();
       if (remaining) {
@@ -358,12 +365,14 @@ const Home: React.FC = () => {
             const speaker = r.alternatives?.[0]?.speaker || "S1";
 
             // Use a unique ID to prevent processing the same final twice
-            const resultId = `${r.start_time || 0}-${r.end_time || 0}-${speaker}-${piece}`;
-            
+            const resultId = `${r.start_time || 0}-${
+              r.end_time || 0
+            }-${speaker}-${piece}`;
+
             if (processedFinalIds.current.has(resultId)) {
               continue;
             }
-            
+
             await handleFinalChunk(piece, speaker, resultId);
           }
         } else if (data.message === "Error") {
@@ -386,11 +395,15 @@ const Home: React.FC = () => {
       });
 
       await client.start(jwt, {
-        audio_format: { type: "raw", encoding: "pcm_s16le", sample_rate: 16000 },
+        audio_format: {
+          type: "raw",
+          encoding: "pcm_s16le",
+          sample_rate: 16000,
+        },
         transcription_config: {
           language: "en",
           operating_point: "standard",
-          max_delay: 1.5,
+          max_delay: 2.5,
           enable_partials: false,
           diarization: "speaker",
           transcript_filtering_config: { remove_disfluencies: true },
@@ -420,10 +433,6 @@ const Home: React.FC = () => {
       preGain.gain.value = 1.2;
       preGainRef.current = preGain;
 
-      const softMuteGain = ac.createGain();
-      softMuteGain.gain.value = 1.0;
-      softMuteGainRef.current = softMuteGain;
-
       const node = new AudioWorkletNode(ac, "audio-processor");
       workletNodeRef.current = node;
       node.port.onmessage = (e) => {
@@ -436,10 +445,9 @@ const Home: React.FC = () => {
         }
       };
 
-      // chain: mic -> preGain -> softMuteGain -> worklet
+      // chain: mic -> preGain -> worklet
       source.connect(preGain);
-      preGain.connect(softMuteGain);
-      softMuteGain.connect(node);
+      preGain.connect(node);
 
       setIsRecording(true);
     } catch (err) {
@@ -461,10 +469,6 @@ const Home: React.FC = () => {
         workletNodeRef.current.disconnect();
         workletNodeRef.current.port.onmessage = null;
         workletNodeRef.current = null;
-      }
-      if (softMuteGainRef.current) {
-        softMuteGainRef.current.disconnect();
-        softMuteGainRef.current = null;
       }
       if (preGainRef.current) {
         preGainRef.current.disconnect();
@@ -497,7 +501,9 @@ const Home: React.FC = () => {
     if (isRecording) {
       stopRecording();
       // Save transcript to Firebase when stopping
-      const combinedTranscript = lines.map((l) => `${l.speaker}: ${l.text}`).join("\n");
+      const combinedTranscript = lines
+        .map((l) => `${l.speaker}: ${l.text}`)
+        .join("\n");
       if (combinedTranscript.trim()) {
         addTranscript(combinedTranscript);
       }
@@ -507,7 +513,9 @@ const Home: React.FC = () => {
   };
 
   const handleDownload = () => {
-    const combinedTranscript = lines.map((l) => `${l.speaker}: ${l.text}`).join("\n");
+    const combinedTranscript = lines
+      .map((l) => `${l.speaker}: ${l.text}`)
+      .join("\n");
     const blob = new Blob([combinedTranscript], {
       type: "text/plain",
     });
@@ -604,7 +612,9 @@ const Home: React.FC = () => {
           <div className="w-[500px] h-[580px] mt-[52px] flex flex-col overflow-hidden justify-between">
             <div>
               <div className="pb-2 px-10">
-                <p className="text-gray-700 text-lg font-semibold">Transcript</p>
+                <p className="text-gray-700 text-lg font-semibold">
+                  Transcript
+                </p>
               </div>
               <div className="h-[420px] overflow-y-auto px-10 leading-relaxed">
                 {lines.length === 0 ? (
@@ -618,8 +628,9 @@ const Home: React.FC = () => {
                       S3: "text-purple-700",
                       S4: "text-orange-700",
                     };
-                    const speakerColor = speakerColors[line.speaker] || "text-gray-700";
-                    
+                    const speakerColor =
+                      speakerColors[line.speaker] || "text-gray-700";
+
                     return (
                       <div key={idx} className="mb-3">
                         <span className={`font-semibold ${speakerColor}`}>
