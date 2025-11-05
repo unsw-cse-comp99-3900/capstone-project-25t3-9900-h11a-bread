@@ -1,3 +1,4 @@
+// Home.tsx
 import { useState, useRef, useEffect } from "react";
 import Header from "./Header";
 import { RealtimeClient } from "@speechmatics/real-time-client";
@@ -114,6 +115,10 @@ const Home: React.FC = () => {
   const [audioQueue, setAudioQueue] = useState<ArrayBuffer[]>([]);
   const [isPlaying, setIsPlaying] = useState(false);
 
+  /** NEW: 文本序列队列（仅新增） */
+  const [textQueue, setTextQueue] = useState<string[]>([]);
+  const ttsSynthLoopBusyRef = useRef(false);
+
   /** TTS de-dup guards */
   const lastUtteranceRef = useRef<string>("");
   const recentSetRef = useRef<string[]>([]); // rolling window
@@ -154,7 +159,6 @@ const Home: React.FC = () => {
             synthesizer.close();
           } catch {}
           if (r.reason === sdk.ResultReason.SynthesizingAudioCompleted) {
-            // r.audioData is an ArrayBuffer of WAV bytes
             resolve(r.audioData as ArrayBuffer);
           } else {
             reject(r.errorDetails || "Azure TTS failed");
@@ -175,7 +179,7 @@ const Home: React.FC = () => {
   async function speakSentence(sentence: string) {
     const norm = normalize(sentence);
     if (!norm) return;
-    
+
     if (norm === lastUtteranceRef.current) {
       return;
     }
@@ -243,7 +247,6 @@ const Home: React.FC = () => {
         src.start(startAt);
       } catch (e) {
         console.error("Audio decode error:", e);
-        // On decode error, drop this item to keep pipeline moving
         if (softMuteGainRef.current) softMuteGainRef.current.gain.value = 1.0;
         setAudioQueue((prev) => prev.slice(1));
         setIsPlaying(false);
@@ -251,18 +254,39 @@ const Home: React.FC = () => {
     })();
   }, [audioQueue, isPlaying]);
 
+  /** NEW: 文本队列消费循环（仅新增）
+   *  串行从 textQueue 取句子 -> 调用 speakSentence() 合成 -> 音频入 audioQueue
+   *  注意：播放仍由上面的 audioQueue 播放循环负责
+   */
+  useEffect(() => {
+    (async () => {
+      if (ttsSynthLoopBusyRef.current) return;
+      if (textQueue.length === 0) return;
+
+      ttsSynthLoopBusyRef.current = true;
+      try {
+        const next = textQueue[0];
+        await speakSentence(next);
+      } catch (e) {
+        console.error("TTS synth error:", e);
+      } finally {
+        // 无论成功失败都弹出本次，避免阻塞后续
+        setTextQueue((q) => q.slice(1));
+        ttsSynthLoopBusyRef.current = false;
+      }
+    })();
+  }, [textQueue]);
+
   /** Sentence buffering (finals only) */
   const bufferRef = useRef<string>("");
   const processedFinalIds = useRef<Set<string>>(new Set());
 
   async function handleFinalChunk(text: string, speaker: string, resultId?: string) {
-    // Skip if we've already processed this exact final result
     if (resultId && processedFinalIds.current.has(resultId)) {
       return;
     }
     if (resultId) {
       processedFinalIds.current.add(resultId);
-      // Keep only last 100 IDs to prevent memory leak
       if (processedFinalIds.current.size > 100) {
         const arr = Array.from(processedFinalIds.current);
         processedFinalIds.current = new Set(arr.slice(-100));
@@ -273,7 +297,6 @@ const Home: React.FC = () => {
     setLines((prev) => {
       if (prev.length) {
         const last = prev[prev.length - 1];
-        // If same speaker, merge the text
         if (last.speaker === speaker) {
           const merged = {
             speaker,
@@ -283,7 +306,6 @@ const Home: React.FC = () => {
           clone[clone.length - 1] = merged;
           return clone;
         }
-        // Different speaker, add new line
         return [...prev, { speaker, text: text.trim() }];
       }
       return [{ speaker, text: text.trim() }];
@@ -291,33 +313,32 @@ const Home: React.FC = () => {
 
     // Add to buffer
     bufferRef.current = (bufferRef.current + " " + text).trim();
-    
-    // If we just received sentence-ending punctuation, split and speak ALL complete sentences
+
+    // 如果末尾是句号/问号/感叹号：切分出所有完整句子——> 推入文本队列（不直接合成）
     if (/[.!?]$/.test(text)) {
       const tmp = bufferRef.current;
-      
-      // IMMEDIATELY clear the buffer before processing to prevent next word contamination
+
+      // 先清空，防止污染下一批
       bufferRef.current = "";
-      
+
       const re = /([^.!?]+[.!?])\s*/g;
       let lastEnd = 0;
       let m: RegExpExecArray | null;
       const sentences: string[] = [];
-      
+
       while ((m = re.exec(tmp)) !== null) {
         const sent = m[1].trim();
-        if (sent) {
-          sentences.push(sent);
-        }
+        if (sent) sentences.push(sent);
         lastEnd = re.lastIndex;
       }
-      
-      // Speak all complete sentences
-      for (const sent of sentences) {
-        await speakSentence(sent);
+
+      // 原来是：for (...) await speakSentence(sent)
+      // 现在改为：推入文本队列，交由 TTS 消费循环串行处理
+      if (sentences.length) {
+        setTextQueue((q) => [...q, ...sentences]);
       }
-      
-      // Restore any incomplete text to buffer (should be empty in most cases)
+
+      // 可能还有残留不完整片段，放回缓冲
       const remaining = tmp.slice(lastEnd).trim();
       if (remaining) {
         bufferRef.current = remaining;
@@ -337,6 +358,7 @@ const Home: React.FC = () => {
       recentSetRef.current = [];
       processedFinalIds.current.clear();
       setAudioQueue([]);
+      setTextQueue([]); // 新增：清空文本队列
 
       if (!API_KEY) throw new Error("Missing Speechmatics API key");
 
@@ -346,7 +368,6 @@ const Home: React.FC = () => {
       client.addEventListener("receiveMessage", async ({ data }) => {
         if (data.message === "AddTranscript") {
           for (const r of data.results) {
-            // STRICT: Only process if explicitly marked as NOT partial
             if ((r as any).is_partial === true) {
               continue;
             }
@@ -354,16 +375,14 @@ const Home: React.FC = () => {
             const piece = (r.alternatives?.[0]?.content || "").trim();
             if (!piece) continue;
 
-            // Extract speaker label from Speechmatics (e.g., "S1", "S2", etc.)
             const speaker = r.alternatives?.[0]?.speaker || "S1";
 
-            // Use a unique ID to prevent processing the same final twice
             const resultId = `${r.start_time || 0}-${r.end_time || 0}-${speaker}-${piece}`;
-            
+
             if (processedFinalIds.current.has(resultId)) {
               continue;
             }
-            
+
             await handleFinalChunk(piece, speaker, resultId);
           }
         } else if (data.message === "Error") {
@@ -373,7 +392,9 @@ const Home: React.FC = () => {
         } else if (data.message === "EndOfTranscript") {
           const tail = bufferRef.current.trim();
           if (tail) {
-            await speakSentence(tail);
+            // 原来是：await speakSentence(tail)
+            // 现在改为：推入文本队列
+            setTextQueue((q) => [...q, tail]);
           }
           bufferRef.current = "";
         }
@@ -611,7 +632,6 @@ const Home: React.FC = () => {
                   <p className="text-gray-500">…listening</p>
                 ) : (
                   lines.map((line, idx) => {
-                    // Assign colors based on speaker
                     const speakerColors: Record<string, string> = {
                       S1: "text-blue-700",
                       S2: "text-green-700",
@@ -619,7 +639,7 @@ const Home: React.FC = () => {
                       S4: "text-orange-700",
                     };
                     const speakerColor = speakerColors[line.speaker] || "text-gray-700";
-                    
+
                     return (
                       <div key={idx} className="mb-3">
                         <span className={`font-semibold ${speakerColor}`}>
