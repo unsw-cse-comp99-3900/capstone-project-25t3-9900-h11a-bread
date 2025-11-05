@@ -255,7 +255,7 @@ const Home: React.FC = () => {
   const bufferRef = useRef<string>("");
   const processedFinalIds = useRef<Set<string>>(new Set());
 
-  async function handleFinalChunk(text: string, resultId?: string) {
+  async function handleFinalChunk(text: string, speaker: string, resultId?: string) {
     // Skip if we've already processed this exact final result
     if (resultId && processedFinalIds.current.has(resultId)) {
       return;
@@ -269,19 +269,24 @@ const Home: React.FC = () => {
       }
     }
 
-    // Append to transcript (single speaker)
+    // Append to transcript with speaker diarization
     setLines((prev) => {
       if (prev.length) {
         const last = prev[prev.length - 1];
-        const merged = {
-          speaker: "S1",
-          text: `${last.text} ${text}`.replace(/\s+/g, " ").trim(),
-        };
-        const clone = [...prev];
-        clone[clone.length - 1] = merged;
-        return clone;
+        // If same speaker, merge the text
+        if (last.speaker === speaker) {
+          const merged = {
+            speaker,
+            text: `${last.text} ${text}`.replace(/\s+/g, " ").trim(),
+          };
+          const clone = [...prev];
+          clone[clone.length - 1] = merged;
+          return clone;
+        }
+        // Different speaker, add new line
+        return [...prev, { speaker, text: text.trim() }];
       }
-      return [{ speaker: "S1", text: text.trim() }];
+      return [{ speaker, text: text.trim() }];
     });
 
     // Add to buffer
@@ -349,14 +354,17 @@ const Home: React.FC = () => {
             const piece = (r.alternatives?.[0]?.content || "").trim();
             if (!piece) continue;
 
+            // Extract speaker label from Speechmatics (e.g., "S1", "S2", etc.)
+            const speaker = r.alternatives?.[0]?.speaker || "S1";
+
             // Use a unique ID to prevent processing the same final twice
-            const resultId = `${r.start_time || 0}-${r.end_time || 0}-${piece}`;
+            const resultId = `${r.start_time || 0}-${r.end_time || 0}-${speaker}-${piece}`;
             
             if (processedFinalIds.current.has(resultId)) {
               continue;
             }
             
-            await handleFinalChunk(piece, resultId);
+            await handleFinalChunk(piece, speaker, resultId);
           }
         } else if (data.message === "Error") {
           console.error("Speechmatics error:", data);
@@ -384,6 +392,7 @@ const Home: React.FC = () => {
           operating_point: "standard",
           max_delay: 1.5,
           enable_partials: false,
+          diarization: "speaker",
           transcript_filtering_config: { remove_disfluencies: true },
         },
       });
