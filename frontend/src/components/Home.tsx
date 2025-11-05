@@ -8,7 +8,7 @@ import * as sdk from "microsoft-cognitiveservices-speech-sdk";
 import { useTranscripts } from "../hooks/useTranscripts";
 import { useAuth } from "../hooks/useAuth";
 
-/* ---------- Azure voice map (we always pick the first voice) ---------- */
+/* ---------- Azure voice map ---------- */
 const VOICE_MAP = {
   American: {
     male: [
@@ -120,9 +120,7 @@ const Home: React.FC = () => {
   const voiceIndexRef = useRef<number>(0);
 
   /** ENV */
-  const API_KEY = import.meta.env.VITE_SPEECHMATICS_API_KEY as
-    | string
-    | undefined;
+  const API_KEY = import.meta.env.VITE_SPEECHMATICS_API_KEY as string | undefined;
   const AZURE_REGION = import.meta.env.VITE_AZURE_REGION as string | undefined;
   const AZURE_KEY = import.meta.env.VITE_AZURE_SPEECH_API_KEY as string | undefined;
 
@@ -134,7 +132,7 @@ const Home: React.FC = () => {
       .replace(/[^\S\r\n]/g, " ")
       .trim();
 
-  /** NEW: Assign a unique voice to each speaker */
+  /** Assign a unique voice to each speaker */
   function assignVoiceForSpeaker(speaker: string): string {
     if (!selectedAccent) return "";
     
@@ -198,7 +196,7 @@ const Home: React.FC = () => {
     });
   }
 
-  /** Speak one sentence with de-dup + queue - MODIFIED to use speaker-specific voice */
+  /** Speak one sentence with de-dup + queue */
   const ttsBusyRef = useRef(false);
   async function speakSentence(sentence: string, speaker: string) {
     const norm = normalize(sentence);
@@ -604,7 +602,7 @@ const Home: React.FC = () => {
                 {isLoading ? "Loading" : isRecording ? "Stop" : "Start"}
               </span>
 
-              {/* local styles – keep Tailwind untouched */}
+              {/* local styles */}
               <style>
                 {`
       .ring-base { transform-origin: center; }
