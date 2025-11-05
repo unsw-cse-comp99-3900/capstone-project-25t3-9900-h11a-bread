@@ -8,7 +8,7 @@ import * as sdk from "microsoft-cognitiveservices-speech-sdk";
 import { useTranscripts } from "../hooks/useTranscripts";
 import { useAuth } from "../hooks/useAuth";
 
-/* ---------- Azure voice map (we always pick the first voice) ---------- */
+/* ---------- Azure voice map ---------- */
 const VOICE_MAP = {
   American: {
     male: [
@@ -120,9 +120,7 @@ const Home: React.FC = () => {
   const voiceIndexRef = useRef<number>(0);
 
   /** ENV */
-  const API_KEY = import.meta.env.VITE_SPEECHMATICS_API_KEY as
-    | string
-    | undefined;
+  const API_KEY = import.meta.env.VITE_SPEECHMATICS_API_KEY as string | undefined;
   const AZURE_REGION = import.meta.env.VITE_AZURE_REGION as string | undefined;
   const AZURE_KEY = import.meta.env.VITE_AZURE_SPEECH_API_KEY as string | undefined;
 
@@ -134,7 +132,7 @@ const Home: React.FC = () => {
       .replace(/[^\S\r\n]/g, " ")
       .trim();
 
-  /** NEW: Assign a unique voice to each speaker */
+  /** Assign a unique voice to each speaker */
   function assignVoiceForSpeaker(speaker: string): string {
     if (!selectedAccent) return "";
     
@@ -198,7 +196,7 @@ const Home: React.FC = () => {
     });
   }
 
-  /** Speak one sentence with de-dup + queue - MODIFIED to use speaker-specific voice */
+  /** Speak one sentence with de-dup + queue */
   const ttsBusyRef = useRef(false);
   async function speakSentence(sentence: string, speaker: string) {
     const norm = normalize(sentence);
@@ -338,9 +336,9 @@ const Home: React.FC = () => {
         lastEnd = re.lastIndex;
       }
       
-      // Speak all complete sentences with speaker info
+      // Speak all complete sentences with speaker info (fire-and-forget, non-blocking)
       for (const sent of sentences) {
-        await speakSentence(sent, speaker);
+        speakSentence(sent, speaker);
       }
 
       // Restore any incomplete text to buffer (should be empty in most cases)
@@ -404,7 +402,7 @@ const Home: React.FC = () => {
           const tail = bufferRef.current.trim();
           if (tail) {
             const lastSpeaker = lines[lines.length - 1]?.speaker || "S1";
-            await speakSentence(tail, lastSpeaker);
+            speakSentence(tail, lastSpeaker);
           }
           bufferRef.current = "";
         }
@@ -424,10 +422,13 @@ const Home: React.FC = () => {
         },
         transcription_config: {
           language: "en",
-          operating_point: "standard",
-          max_delay: 2.5,
+          operating_point: "enhanced",
+          max_delay: 3.0,
           enable_partials: false,
           diarization: "speaker",
+          speaker_diarization_config: {
+            max_speakers: 5,
+          },
           transcript_filtering_config: { remove_disfluencies: true },
         },
       });
@@ -601,7 +602,7 @@ const Home: React.FC = () => {
                 {isLoading ? "Loading" : isRecording ? "Stop" : "Start"}
               </span>
 
-              {/* local styles – keep Tailwind untouched */}
+              {/* local styles */}
               <style>
                 {`
       .ring-base { transform-origin: center; }
