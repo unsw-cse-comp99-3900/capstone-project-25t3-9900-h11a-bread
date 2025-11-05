@@ -120,13 +120,19 @@ const Home: React.FC = () => {
   const voiceIndexRef = useRef<number>(0);
 
   /** ENV */
-  const API_KEY = import.meta.env.VITE_SPEECHMATICS_API_KEY as string | undefined;
+  const API_KEY = import.meta.env.VITE_SPEECHMATICS_API_KEY as
+    | string
+    | undefined;
   const AZURE_REGION = import.meta.env.VITE_AZURE_REGION as string | undefined;
   const AZURE_KEY = import.meta.env.VITE_AZURE_SPEECH_API_KEY as string | undefined;
 
   /** Helpers */
   const normalize = (s: string) =>
-    s.toLowerCase().replace(/\s+/g, " ").replace(/[^\S\r\n]/g, " ").trim();
+    s
+      .toLowerCase()
+      .replace(/\s+/g, " ")
+      .replace(/[^\S\r\n]/g, " ")
+      .trim();
 
   /** NEW: Assign a unique voice to each speaker */
   function assignVoiceForSpeaker(speaker: string): string {
@@ -157,7 +163,10 @@ const Home: React.FC = () => {
     voiceName: string
   ): Promise<ArrayBuffer> {
     if (!AZURE_KEY || !AZURE_REGION) throw new Error("Missing Azure config");
-    const speechConfig = sdk.SpeechConfig.fromSubscription(AZURE_KEY, AZURE_REGION);
+    const speechConfig = sdk.SpeechConfig.fromSubscription(
+      AZURE_KEY,
+      AZURE_REGION
+    );
     speechConfig.speechSynthesisVoiceName = voiceName;
 
     // Route audio to a stream (prevents SDK auto-playing to speakers)
@@ -194,7 +203,7 @@ const Home: React.FC = () => {
   async function speakSentence(sentence: string, speaker: string) {
     const norm = normalize(sentence);
     if (!norm) return;
-    
+
     if (norm === lastUtteranceRef.current) {
       return;
     }
@@ -268,7 +277,11 @@ const Home: React.FC = () => {
   const bufferRef = useRef<string>("");
   const processedFinalIds = useRef<Set<string>>(new Set());
 
-  async function handleFinalChunk(text: string, speaker: string, resultId?: string) {
+  async function handleFinalChunk(
+    text: string,
+    speaker: string,
+    resultId?: string
+  ) {
     // Skip if we've already processed this exact final result
     if (resultId && processedFinalIds.current.has(resultId)) {
       return;
@@ -304,19 +317,19 @@ const Home: React.FC = () => {
 
     // Add to buffer
     bufferRef.current = (bufferRef.current + " " + text).trim();
-    
+
     // If we just received sentence-ending punctuation, split and speak ALL complete sentences
     if (/[.!?]$/.test(text)) {
       const tmp = bufferRef.current;
-      
+
       // IMMEDIATELY clear the buffer before processing to prevent next word contamination
       bufferRef.current = "";
-      
+
       const re = /([^.!?]+[.!?])\s*/g;
       let lastEnd = 0;
       let m: RegExpExecArray | null;
       const sentences: string[] = [];
-      
+
       while ((m = re.exec(tmp)) !== null) {
         const sent = m[1].trim();
         if (sent) {
@@ -329,7 +342,7 @@ const Home: React.FC = () => {
       for (const sent of sentences) {
         await speakSentence(sent, speaker);
       }
-      
+
       // Restore any incomplete text to buffer (should be empty in most cases)
       const remaining = tmp.slice(lastEnd).trim();
       if (remaining) {
@@ -373,12 +386,14 @@ const Home: React.FC = () => {
             const speaker = r.alternatives?.[0]?.speaker || "S1";
 
             // Use a unique ID to prevent processing the same final twice
-            const resultId = `${r.start_time || 0}-${r.end_time || 0}-${speaker}-${piece}`;
-            
+            const resultId = `${r.start_time || 0}-${
+              r.end_time || 0
+            }-${speaker}-${piece}`;
+
             if (processedFinalIds.current.has(resultId)) {
               continue;
             }
-            
+
             await handleFinalChunk(piece, speaker, resultId);
           }
         } else if (data.message === "Error") {
@@ -402,7 +417,11 @@ const Home: React.FC = () => {
       });
 
       await client.start(jwt, {
-        audio_format: { type: "raw", encoding: "pcm_s16le", sample_rate: 16000 },
+        audio_format: {
+          type: "raw",
+          encoding: "pcm_s16le",
+          sample_rate: 16000,
+        },
         transcription_config: {
           language: "en",
           operating_point: "standard",
@@ -504,7 +523,9 @@ const Home: React.FC = () => {
     if (isRecording) {
       stopRecording();
       // Save transcript to Firebase when stopping
-      const combinedTranscript = lines.map((l) => `${l.speaker}: ${l.text}`).join("\n");
+      const combinedTranscript = lines
+        .map((l) => `${l.speaker}: ${l.text}`)
+        .join("\n");
       if (combinedTranscript.trim()) {
         addTranscript(combinedTranscript);
       }
@@ -514,7 +535,9 @@ const Home: React.FC = () => {
   };
 
   const handleDownload = () => {
-    const combinedTranscript = lines.map((l) => `${l.speaker}: ${l.text}`).join("\n");
+    const combinedTranscript = lines
+      .map((l) => `${l.speaker}: ${l.text}`)
+      .join("\n");
     const blob = new Blob([combinedTranscript], {
       type: "text/plain",
     });
@@ -615,7 +638,9 @@ const Home: React.FC = () => {
           <div className="w-[500px] h-[580px] mt-[52px] flex flex-col overflow-hidden justify-between">
             <div>
               <div className="pb-2 px-10">
-                <p className="text-gray-700 text-lg font-semibold">Transcript</p>
+                <p className="text-gray-700 text-lg font-semibold">
+                  Transcript
+                </p>
               </div>
               <div className="h-[420px] overflow-y-auto px-10 leading-relaxed">
                 {lines.length === 0 ? (
