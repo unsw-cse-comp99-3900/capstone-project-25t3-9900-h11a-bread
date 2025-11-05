@@ -1,4 +1,3 @@
-// Home.tsx
 import { useState, useRef, useEffect } from "react";
 import Header from "./Header";
 import { RealtimeClient } from "@speechmatics/real-time-client";
@@ -9,7 +8,7 @@ import * as sdk from "microsoft-cognitiveservices-speech-sdk";
 import { useTranscripts } from "../hooks/useTranscripts";
 import { useAuth } from "../hooks/useAuth";
 
-/* ---------- Azure voice map (we always pick the first voice) ---------- */
+/* ---------- Azure voice map ---------- */
 const VOICE_MAP = {
   American: {
     male: [
@@ -103,9 +102,6 @@ const Home: React.FC = () => {
   const workletNodeRef = useRef<AudioWorkletNode | null>(null);
   const preGainRef = useRef<GainNode | null>(null);
 
-  /** Soft-mute during playback (on mic path) */
-  const softMuteGainRef = useRef<GainNode | null>(null);
-
   /** Selection */
   const [selectedAccent, setSelectedAccent] = useState<AccentKey | "">("");
   const [selectedGender, setSelectedGender] = useState<GenderKey>("male");
@@ -115,35 +111,60 @@ const Home: React.FC = () => {
   const [audioQueue, setAudioQueue] = useState<ArrayBuffer[]>([]);
   const [isPlaying, setIsPlaying] = useState(false);
 
-  /** NEW: 文本序列队列（仅新增） */
-  const [textQueue, setTextQueue] = useState<string[]>([]);
-  const ttsSynthLoopBusyRef = useRef(false);
-
   /** TTS de-dup guards */
   const lastUtteranceRef = useRef<string>("");
   const recentSetRef = useRef<string[]>([]); // rolling window
 
+  /** Speaker voice assignment */
+  const speakerVoiceMap = useRef<Record<string, string>>({});
+  const voiceIndexRef = useRef<number>(0);
+
   /** ENV */
   const API_KEY = import.meta.env.VITE_SPEECHMATICS_API_KEY as string | undefined;
   const AZURE_REGION = import.meta.env.VITE_AZURE_REGION as string | undefined;
-  const AZURE_KEY = import.meta.env.VITE_AZURE_SPEECH_API_KEY as
-    | string
-    | undefined;
+  const AZURE_KEY = import.meta.env.VITE_AZURE_SPEECH_API_KEY as string | undefined;
 
   /** Helpers */
   const normalize = (s: string) =>
-    s.toLowerCase().replace(/\s+/g, " ").replace(/[^\S\r\n]/g, " ").trim();
+    s
+      .toLowerCase()
+      .replace(/\s+/g, " ")
+      .replace(/[^\S\r\n]/g, " ")
+      .trim();
 
-  function pickVoice(): string {
+  /** Assign a unique voice to each speaker */
+  function assignVoiceForSpeaker(speaker: string): string {
     if (!selectedAccent) return "";
-    const bank = VOICE_MAP[selectedAccent][selectedGender];
-    return bank?.[0] || ""; // fixed first voice
+
+    // Check if this speaker already has a voice assigned
+    if (speakerVoiceMap.current[speaker]) {
+      return speakerVoiceMap.current[speaker];
+    }
+
+    // Assign a new voice from the pool
+    const voiceBank = VOICE_MAP[selectedAccent][selectedGender];
+    if (!voiceBank || voiceBank.length === 0) return "";
+
+    const voiceIndex = voiceIndexRef.current % voiceBank.length;
+    const assignedVoice = voiceBank[voiceIndex];
+
+    speakerVoiceMap.current[speaker] = assignedVoice;
+    voiceIndexRef.current += 1;
+
+    console.log(`Assigned voice ${assignedVoice} to ${speaker}`);
+    return assignedVoice;
   }
 
   /** Azure TTS -> ArrayBuffer (no auto-play) */
-  async function synthToBuffer(text: string, voiceName: string): Promise<ArrayBuffer> {
+  async function synthToBuffer(
+    text: string,
+    voiceName: string
+  ): Promise<ArrayBuffer> {
     if (!AZURE_KEY || !AZURE_REGION) throw new Error("Missing Azure config");
-    const speechConfig = sdk.SpeechConfig.fromSubscription(AZURE_KEY, AZURE_REGION);
+    const speechConfig = sdk.SpeechConfig.fromSubscription(
+      AZURE_KEY,
+      AZURE_REGION
+    );
     speechConfig.speechSynthesisVoiceName = voiceName;
 
     // Route audio to a stream (prevents SDK auto-playing to speakers)
@@ -159,6 +180,7 @@ const Home: React.FC = () => {
             synthesizer.close();
           } catch {}
           if (r.reason === sdk.ResultReason.SynthesizingAudioCompleted) {
+            // r.audioData is an ArrayBuffer of WAV bytes
             resolve(r.audioData as ArrayBuffer);
           } else {
             reject(r.errorDetails || "Azure TTS failed");
@@ -176,7 +198,7 @@ const Home: React.FC = () => {
 
   /** Speak one sentence with de-dup + queue */
   const ttsBusyRef = useRef(false);
-  async function speakSentence(sentence: string) {
+  async function speakSentence(sentence: string, speaker: string) {
     const norm = normalize(sentence);
     if (!norm) return;
 
@@ -191,7 +213,7 @@ const Home: React.FC = () => {
     while (ttsBusyRef.current) await new Promise((r) => setTimeout(r, 5));
     ttsBusyRef.current = true;
     try {
-      const voice = pickVoice();
+      const voice = assignVoiceForSpeaker(speaker); // Use speaker-specific voice
       if (!voice) return;
       const buf = await synthToBuffer(sentence, voice);
       setAudioQueue((q) => [...q, buf]);
@@ -203,7 +225,7 @@ const Home: React.FC = () => {
     }
   }
 
-  /** Playback loop (Web Audio). Soft-mute mic while playing. */
+  /** Playback loop (Web Audio) */
   useEffect(() => {
     (async () => {
       if (isPlaying || audioQueue.length === 0) return;
@@ -228,16 +250,11 @@ const Home: React.FC = () => {
           wavBytes.slice(0) // pass a copy
         );
 
-        // Soft-mute mic right before starting playback
-        if (softMuteGainRef.current) softMuteGainRef.current.gain.value = 0.0;
-
         const src = ctx.createBufferSource();
         src.buffer = audioBuf;
         src.connect(ctx.destination);
 
         src.onended = () => {
-          // Unmute mic after playback
-          if (softMuteGainRef.current) softMuteGainRef.current.gain.value = 1.0;
           setAudioQueue((prev) => prev.slice(1));
           setIsPlaying(false);
         };
@@ -247,46 +264,29 @@ const Home: React.FC = () => {
         src.start(startAt);
       } catch (e) {
         console.error("Audio decode error:", e);
-        if (softMuteGainRef.current) softMuteGainRef.current.gain.value = 1.0;
+        // On decode error, drop this item to keep pipeline moving
         setAudioQueue((prev) => prev.slice(1));
         setIsPlaying(false);
       }
     })();
   }, [audioQueue, isPlaying]);
 
-  /** NEW: 文本队列消费循环（仅新增）
-   *  串行从 textQueue 取句子 -> 调用 speakSentence() 合成 -> 音频入 audioQueue
-   *  注意：播放仍由上面的 audioQueue 播放循环负责
-   */
-  useEffect(() => {
-    (async () => {
-      if (ttsSynthLoopBusyRef.current) return;
-      if (textQueue.length === 0) return;
-
-      ttsSynthLoopBusyRef.current = true;
-      try {
-        const next = textQueue[0];
-        await speakSentence(next);
-      } catch (e) {
-        console.error("TTS synth error:", e);
-      } finally {
-        // 无论成功失败都弹出本次，避免阻塞后续
-        setTextQueue((q) => q.slice(1));
-        ttsSynthLoopBusyRef.current = false;
-      }
-    })();
-  }, [textQueue]);
-
   /** Sentence buffering (finals only) */
   const bufferRef = useRef<string>("");
   const processedFinalIds = useRef<Set<string>>(new Set());
 
-  async function handleFinalChunk(text: string, speaker: string, resultId?: string) {
+  async function handleFinalChunk(
+    text: string,
+    speaker: string,
+    resultId?: string
+  ) {
+    // Skip if we've already processed this exact final result
     if (resultId && processedFinalIds.current.has(resultId)) {
       return;
     }
     if (resultId) {
       processedFinalIds.current.add(resultId);
+      // Keep only last 100 IDs to prevent memory leak
       if (processedFinalIds.current.size > 100) {
         const arr = Array.from(processedFinalIds.current);
         processedFinalIds.current = new Set(arr.slice(-100));
@@ -297,6 +297,7 @@ const Home: React.FC = () => {
     setLines((prev) => {
       if (prev.length) {
         const last = prev[prev.length - 1];
+        // If same speaker, merge the text
         if (last.speaker === speaker) {
           const merged = {
             speaker,
@@ -306,6 +307,7 @@ const Home: React.FC = () => {
           clone[clone.length - 1] = merged;
           return clone;
         }
+        // Different speaker, add new line
         return [...prev, { speaker, text: text.trim() }];
       }
       return [{ speaker, text: text.trim() }];
@@ -314,31 +316,32 @@ const Home: React.FC = () => {
     // Add to buffer
     bufferRef.current = (bufferRef.current + " " + text).trim();
 
-    // 如果末尾是句号/问号/感叹号：切分出所有完整句子——> 推入文本队列（不直接合成）
+    // If we just received sentence-ending punctuation, split and speak ALL complete sentences
     if (/[.!?]$/.test(text)) {
       const tmp = bufferRef.current;
 
-      // 先清空，防止污染下一批
+      // IMMEDIATELY clear the buffer before processing to prevent next word contamination
       bufferRef.current = "";
-
+      
       const re = /([^.!?]+[.!?])\s*/g;
       let lastEnd = 0;
       let m: RegExpExecArray | null;
       const sentences: string[] = [];
-
+      
       while ((m = re.exec(tmp)) !== null) {
         const sent = m[1].trim();
-        if (sent) sentences.push(sent);
+        if (sent) {
+          sentences.push(sent);
+        }
         lastEnd = re.lastIndex;
       }
-
-      // 原来是：for (...) await speakSentence(sent)
-      // 现在改为：推入文本队列，交由 TTS 消费循环串行处理
-      if (sentences.length) {
-        setTextQueue((q) => [...q, ...sentences]);
+      
+      // Speak all complete sentences with speaker info (fire-and-forget, non-blocking)
+      for (const sent of sentences) {
+        speakSentence(sent, speaker);
       }
 
-      // 可能还有残留不完整片段，放回缓冲
+      // Restore any incomplete text to buffer (should be empty in most cases)
       const remaining = tmp.slice(lastEnd).trim();
       if (remaining) {
         bufferRef.current = remaining;
@@ -357,8 +360,9 @@ const Home: React.FC = () => {
       lastUtteranceRef.current = "";
       recentSetRef.current = [];
       processedFinalIds.current.clear();
+      speakerVoiceMap.current = {}; // Reset speaker-voice mapping
+      voiceIndexRef.current = 0; // Reset voice index
       setAudioQueue([]);
-      setTextQueue([]); // 新增：清空文本队列
 
       if (!API_KEY) throw new Error("Missing Speechmatics API key");
 
@@ -368,6 +372,7 @@ const Home: React.FC = () => {
       client.addEventListener("receiveMessage", async ({ data }) => {
         if (data.message === "AddTranscript") {
           for (const r of data.results) {
+            // STRICT: Only process if explicitly marked as NOT partial
             if ((r as any).is_partial === true) {
               continue;
             }
@@ -375,14 +380,18 @@ const Home: React.FC = () => {
             const piece = (r.alternatives?.[0]?.content || "").trim();
             if (!piece) continue;
 
+            // Extract speaker label from Speechmatics (e.g., "S1", "S2", etc.)
             const speaker = r.alternatives?.[0]?.speaker || "S1";
 
-            const resultId = `${r.start_time || 0}-${r.end_time || 0}-${speaker}-${piece}`;
+            // Use a unique ID to prevent processing the same final twice
+            const resultId = `${r.start_time || 0}-${
+              r.end_time || 0
+            }-${speaker}-${piece}`;
 
             if (processedFinalIds.current.has(resultId)) {
               continue;
             }
-
+            
             await handleFinalChunk(piece, speaker, resultId);
           }
         } else if (data.message === "Error") {
@@ -392,9 +401,8 @@ const Home: React.FC = () => {
         } else if (data.message === "EndOfTranscript") {
           const tail = bufferRef.current.trim();
           if (tail) {
-            // 原来是：await speakSentence(tail)
-            // 现在改为：推入文本队列
-            setTextQueue((q) => [...q, tail]);
+            const lastSpeaker = lines[lines.length - 1]?.speaker || "S1";
+            speakSentence(tail, lastSpeaker);
           }
           bufferRef.current = "";
         }
@@ -407,13 +415,20 @@ const Home: React.FC = () => {
       });
 
       await client.start(jwt, {
-        audio_format: { type: "raw", encoding: "pcm_s16le", sample_rate: 16000 },
+        audio_format: {
+          type: "raw",
+          encoding: "pcm_s16le",
+          sample_rate: 16000,
+        },
         transcription_config: {
           language: "en",
-          operating_point: "standard",
-          max_delay: 1.5,
+          operating_point: "enhanced",
+          max_delay: 3.0,
           enable_partials: false,
           diarization: "speaker",
+          speaker_diarization_config: {
+            max_speakers: 5,
+          },
           transcript_filtering_config: { remove_disfluencies: true },
         },
       });
@@ -441,10 +456,6 @@ const Home: React.FC = () => {
       preGain.gain.value = 1.2;
       preGainRef.current = preGain;
 
-      const softMuteGain = ac.createGain();
-      softMuteGain.gain.value = 1.0;
-      softMuteGainRef.current = softMuteGain;
-
       const node = new AudioWorkletNode(ac, "audio-processor");
       workletNodeRef.current = node;
       node.port.onmessage = (e) => {
@@ -457,10 +468,9 @@ const Home: React.FC = () => {
         }
       };
 
-      // chain: mic -> preGain -> softMuteGain -> worklet
+      // chain: mic -> preGain -> worklet
       source.connect(preGain);
-      preGain.connect(softMuteGain);
-      softMuteGain.connect(node);
+      preGain.connect(node);
 
       setIsRecording(true);
     } catch (err) {
@@ -482,10 +492,6 @@ const Home: React.FC = () => {
         workletNodeRef.current.disconnect();
         workletNodeRef.current.port.onmessage = null;
         workletNodeRef.current = null;
-      }
-      if (softMuteGainRef.current) {
-        softMuteGainRef.current.disconnect();
-        softMuteGainRef.current = null;
       }
       if (preGainRef.current) {
         preGainRef.current.disconnect();
@@ -518,7 +524,9 @@ const Home: React.FC = () => {
     if (isRecording) {
       stopRecording();
       // Save transcript to Firebase when stopping
-      const combinedTranscript = lines.map((l) => `${l.speaker}: ${l.text}`).join("\n");
+      const combinedTranscript = lines
+        .map((l) => `${l.speaker}: ${l.text}`)
+        .join("\n");
       if (combinedTranscript.trim()) {
         addTranscript(combinedTranscript);
       }
@@ -528,7 +536,9 @@ const Home: React.FC = () => {
   };
 
   const handleDownload = () => {
-    const combinedTranscript = lines.map((l) => `${l.speaker}: ${l.text}`).join("\n");
+    const combinedTranscript = lines
+      .map((l) => `${l.speaker}: ${l.text}`)
+      .join("\n");
     const blob = new Blob([combinedTranscript], {
       type: "text/plain",
     });
@@ -553,11 +563,15 @@ const Home: React.FC = () => {
               setSelectedAccent(accent as AccentKey);
               lastUtteranceRef.current = "";
               recentSetRef.current = [];
+              speakerVoiceMap.current = {}; // Reset when accent changes
+              voiceIndexRef.current = 0;
             }}
             onGenderChange={(g) => {
               setSelectedGender(g as GenderKey);
               lastUtteranceRef.current = "";
               recentSetRef.current = [];
+              speakerVoiceMap.current = {}; // Reset when gender changes
+              voiceIndexRef.current = 0;
             }}
           />
 
@@ -588,7 +602,7 @@ const Home: React.FC = () => {
                 {isLoading ? "Loading" : isRecording ? "Stop" : "Start"}
               </span>
 
-              {/* local styles – keep Tailwind untouched */}
+              {/* local styles */}
               <style>
                 {`
       .ring-base { transform-origin: center; }
@@ -625,13 +639,16 @@ const Home: React.FC = () => {
           <div className="w-[500px] h-[580px] mt-[52px] flex flex-col overflow-hidden justify-between">
             <div>
               <div className="pb-2 px-10">
-                <p className="text-gray-700 text-lg font-semibold">Transcript</p>
+                <p className="text-gray-700 text-lg font-semibold">
+                  Transcript
+                </p>
               </div>
               <div className="h-[420px] overflow-y-auto px-10 leading-relaxed">
                 {lines.length === 0 ? (
                   <p className="text-gray-500">…listening</p>
                 ) : (
                   lines.map((line, idx) => {
+                    // Assign colors based on speaker
                     const speakerColors: Record<string, string> = {
                       S1: "text-blue-700",
                       S2: "text-green-700",
@@ -640,10 +657,20 @@ const Home: React.FC = () => {
                     };
                     const speakerColor = speakerColors[line.speaker] || "text-gray-700";
 
+                    // Get assigned voice for this speaker
+                    const assignedVoice = speakerVoiceMap.current[line.speaker];
+                    const voiceLabel = assignedVoice
+                      ? assignedVoice.replace(/^.*-([A-Za-z]+)Neural$/, "$1")
+                      : "";
+
+
                     return (
                       <div key={idx} className="mb-3">
                         <span className={`font-semibold ${speakerColor}`}>
-                          {line.speaker}:
+                          {line.speaker}
+                          {voiceLabel && (
+                            <span className="text-xs ml-1 opacity-60">({voiceLabel})</span>
+                          )}:
                         </span>{" "}
                         <span className="text-gray-700">{line.text}</span>
                       </div>
