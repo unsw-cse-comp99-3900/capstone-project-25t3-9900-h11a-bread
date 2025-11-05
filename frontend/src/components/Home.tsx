@@ -338,9 +338,9 @@ const Home: React.FC = () => {
         lastEnd = re.lastIndex;
       }
       
-      // Speak all complete sentences with speaker info
+      // Speak all complete sentences with speaker info (fire-and-forget, non-blocking)
       for (const sent of sentences) {
-        await speakSentence(sent, speaker);
+        speakSentence(sent, speaker);
       }
 
       // Restore any incomplete text to buffer (should be empty in most cases)
@@ -404,7 +404,7 @@ const Home: React.FC = () => {
           const tail = bufferRef.current.trim();
           if (tail) {
             const lastSpeaker = lines[lines.length - 1]?.speaker || "S1";
-            await speakSentence(tail, lastSpeaker);
+            speakSentence(tail, lastSpeaker);
           }
           bufferRef.current = "";
         }
@@ -424,10 +424,13 @@ const Home: React.FC = () => {
         },
         transcription_config: {
           language: "en",
-          operating_point: "standard",
-          max_delay: 2.5,
+          operating_point: "enhanced",
+          max_delay: 4.0,
           enable_partials: false,
           diarization: "speaker",
+          speaker_diarization_config: {
+            max_speakers: 5,
+          },
           transcript_filtering_config: { remove_disfluencies: true },
         },
       });
