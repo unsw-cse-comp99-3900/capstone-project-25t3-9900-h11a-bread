@@ -102,9 +102,6 @@ const Home: React.FC = () => {
   const workletNodeRef = useRef<AudioWorkletNode | null>(null);
   const preGainRef = useRef<GainNode | null>(null);
 
-  /** Soft-mute during playback (on mic path) */
-  const softMuteGainRef = useRef<GainNode | null>(null);
-
   /** Selection */
   const [selectedAccent, setSelectedAccent] = useState<AccentKey | "">("");
   const [selectedGender, setSelectedGender] = useState<GenderKey>("male");
@@ -118,26 +115,18 @@ const Home: React.FC = () => {
   const lastUtteranceRef = useRef<string>("");
   const recentSetRef = useRef<string[]>([]); // rolling window
 
-  /** Speaker voice assignment - NEW */
+  /** Speaker voice assignment */
   const speakerVoiceMap = useRef<Record<string, string>>({});
   const voiceIndexRef = useRef<number>(0);
 
   /** ENV */
   const API_KEY = import.meta.env.VITE_SPEECHMATICS_API_KEY as string | undefined;
   const AZURE_REGION = import.meta.env.VITE_AZURE_REGION as string | undefined;
-  const AZURE_KEY = import.meta.env.VITE_AZURE_SPEECH_API_KEY as
-    | string
-    | undefined;
+  const AZURE_KEY = import.meta.env.VITE_AZURE_SPEECH_API_KEY as string | undefined;
 
   /** Helpers */
   const normalize = (s: string) =>
     s.toLowerCase().replace(/\s+/g, " ").replace(/[^\S\r\n]/g, " ").trim();
-
-  function pickVoice(): string {
-    if (!selectedAccent) return "";
-    const bank = VOICE_MAP[selectedAccent][selectedGender];
-    return bank?.[0] || ""; // fixed first voice
-  }
 
   /** NEW: Assign a unique voice to each speaker */
   function assignVoiceForSpeaker(speaker: string): string {
@@ -163,7 +152,10 @@ const Home: React.FC = () => {
   }
 
   /** Azure TTS -> ArrayBuffer (no auto-play) */
-  async function synthToBuffer(text: string, voiceName: string): Promise<ArrayBuffer> {
+  async function synthToBuffer(
+    text: string,
+    voiceName: string
+  ): Promise<ArrayBuffer> {
     if (!AZURE_KEY || !AZURE_REGION) throw new Error("Missing Azure config");
     const speechConfig = sdk.SpeechConfig.fromSubscription(AZURE_KEY, AZURE_REGION);
     speechConfig.speechSynthesisVoiceName = voiceName;
@@ -226,7 +218,7 @@ const Home: React.FC = () => {
     }
   }
 
-  /** Playback loop (Web Audio). Soft-mute mic while playing. */
+  /** Playback loop (Web Audio) */
   useEffect(() => {
     (async () => {
       if (isPlaying || audioQueue.length === 0) return;
@@ -251,16 +243,11 @@ const Home: React.FC = () => {
           wavBytes.slice(0) // pass a copy
         );
 
-        // Soft-mute mic right before starting playback
-        if (softMuteGainRef.current) softMuteGainRef.current.gain.value = 0.0;
-
         const src = ctx.createBufferSource();
         src.buffer = audioBuf;
         src.connect(ctx.destination);
 
         src.onended = () => {
-          // Unmute mic after playback
-          if (softMuteGainRef.current) softMuteGainRef.current.gain.value = 1.0;
           setAudioQueue((prev) => prev.slice(1));
           setIsPlaying(false);
         };
@@ -271,7 +258,6 @@ const Home: React.FC = () => {
       } catch (e) {
         console.error("Audio decode error:", e);
         // On decode error, drop this item to keep pipeline moving
-        if (softMuteGainRef.current) softMuteGainRef.current.gain.value = 1.0;
         setAudioQueue((prev) => prev.slice(1));
         setIsPlaying(false);
       }
@@ -420,7 +406,7 @@ const Home: React.FC = () => {
         transcription_config: {
           language: "en",
           operating_point: "standard",
-          max_delay: 1.5,
+          max_delay: 2.5,
           enable_partials: false,
           diarization: "speaker",
           transcript_filtering_config: { remove_disfluencies: true },
@@ -450,10 +436,6 @@ const Home: React.FC = () => {
       preGain.gain.value = 1.2;
       preGainRef.current = preGain;
 
-      const softMuteGain = ac.createGain();
-      softMuteGain.gain.value = 1.0;
-      softMuteGainRef.current = softMuteGain;
-
       const node = new AudioWorkletNode(ac, "audio-processor");
       workletNodeRef.current = node;
       node.port.onmessage = (e) => {
@@ -466,10 +448,9 @@ const Home: React.FC = () => {
         }
       };
 
-      // chain: mic -> preGain -> softMuteGain -> worklet
+      // chain: mic -> preGain -> worklet
       source.connect(preGain);
-      preGain.connect(softMuteGain);
-      softMuteGain.connect(node);
+      preGain.connect(node);
 
       setIsRecording(true);
     } catch (err) {
@@ -491,10 +472,6 @@ const Home: React.FC = () => {
         workletNodeRef.current.disconnect();
         workletNodeRef.current.port.onmessage = null;
         workletNodeRef.current = null;
-      }
-      if (softMuteGainRef.current) {
-        softMuteGainRef.current.disconnect();
-        softMuteGainRef.current = null;
       }
       if (preGainRef.current) {
         preGainRef.current.disconnect();
