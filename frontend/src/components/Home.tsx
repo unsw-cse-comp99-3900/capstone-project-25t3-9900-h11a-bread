@@ -118,6 +118,10 @@ const Home: React.FC = () => {
   const lastUtteranceRef = useRef<string>("");
   const recentSetRef = useRef<string[]>([]); // rolling window
 
+  /** Speaker voice assignment - NEW */
+  const speakerVoiceMap = useRef<Record<string, string>>({});
+  const voiceIndexRef = useRef<number>(0);
+
   /** ENV */
   const API_KEY = import.meta.env.VITE_SPEECHMATICS_API_KEY as string | undefined;
   const AZURE_REGION = import.meta.env.VITE_AZURE_REGION as string | undefined;
@@ -133,6 +137,29 @@ const Home: React.FC = () => {
     if (!selectedAccent) return "";
     const bank = VOICE_MAP[selectedAccent][selectedGender];
     return bank?.[0] || ""; // fixed first voice
+  }
+
+  /** NEW: Assign a unique voice to each speaker */
+  function assignVoiceForSpeaker(speaker: string): string {
+    if (!selectedAccent) return "";
+    
+    // Check if this speaker already has a voice assigned
+    if (speakerVoiceMap.current[speaker]) {
+      return speakerVoiceMap.current[speaker];
+    }
+    
+    // Assign a new voice from the pool
+    const voiceBank = VOICE_MAP[selectedAccent][selectedGender];
+    if (!voiceBank || voiceBank.length === 0) return "";
+    
+    const voiceIndex = voiceIndexRef.current % voiceBank.length;
+    const assignedVoice = voiceBank[voiceIndex];
+    
+    speakerVoiceMap.current[speaker] = assignedVoice;
+    voiceIndexRef.current += 1;
+    
+    console.log(`Assigned voice ${assignedVoice} to ${speaker}`);
+    return assignedVoice;
   }
 
   /** Azure TTS -> ArrayBuffer (no auto-play) */
@@ -170,9 +197,9 @@ const Home: React.FC = () => {
     });
   }
 
-  /** Speak one sentence with de-dup + queue */
+  /** Speak one sentence with de-dup + queue - MODIFIED to use speaker-specific voice */
   const ttsBusyRef = useRef(false);
-  async function speakSentence(sentence: string) {
+  async function speakSentence(sentence: string, speaker: string) {
     const norm = normalize(sentence);
     if (!norm) return;
     
@@ -187,7 +214,7 @@ const Home: React.FC = () => {
     while (ttsBusyRef.current) await new Promise((r) => setTimeout(r, 5));
     ttsBusyRef.current = true;
     try {
-      const voice = pickVoice();
+      const voice = assignVoiceForSpeaker(speaker); // Use speaker-specific voice
       if (!voice) return;
       const buf = await synthToBuffer(sentence, voice);
       setAudioQueue((q) => [...q, buf]);
@@ -312,9 +339,9 @@ const Home: React.FC = () => {
         lastEnd = re.lastIndex;
       }
       
-      // Speak all complete sentences
+      // Speak all complete sentences with speaker info
       for (const sent of sentences) {
-        await speakSentence(sent);
+        await speakSentence(sent, speaker);
       }
       
       // Restore any incomplete text to buffer (should be empty in most cases)
@@ -336,6 +363,8 @@ const Home: React.FC = () => {
       lastUtteranceRef.current = "";
       recentSetRef.current = [];
       processedFinalIds.current.clear();
+      speakerVoiceMap.current = {}; // Reset speaker-voice mapping
+      voiceIndexRef.current = 0; // Reset voice index
       setAudioQueue([]);
 
       if (!API_KEY) throw new Error("Missing Speechmatics API key");
@@ -373,7 +402,8 @@ const Home: React.FC = () => {
         } else if (data.message === "EndOfTranscript") {
           const tail = bufferRef.current.trim();
           if (tail) {
-            await speakSentence(tail);
+            const lastSpeaker = lines[lines.length - 1]?.speaker || "S1";
+            await speakSentence(tail, lastSpeaker);
           }
           bufferRef.current = "";
         }
@@ -532,11 +562,15 @@ const Home: React.FC = () => {
               setSelectedAccent(accent as AccentKey);
               lastUtteranceRef.current = "";
               recentSetRef.current = [];
+              speakerVoiceMap.current = {}; // Reset when accent changes
+              voiceIndexRef.current = 0;
             }}
             onGenderChange={(g) => {
               setSelectedGender(g as GenderKey);
               lastUtteranceRef.current = "";
               recentSetRef.current = [];
+              speakerVoiceMap.current = {}; // Reset when gender changes
+              voiceIndexRef.current = 0;
             }}
           />
 
@@ -620,10 +654,20 @@ const Home: React.FC = () => {
                     };
                     const speakerColor = speakerColors[line.speaker] || "text-gray-700";
                     
+                    // Get assigned voice for this speaker
+                    const assignedVoice = speakerVoiceMap.current[line.speaker];
+                    const voiceLabel = assignedVoice
+                      ? assignedVoice.replace(/^.*-([A-Za-z]+)Neural$/, "$1")
+                      : "";
+
+                    
                     return (
                       <div key={idx} className="mb-3">
                         <span className={`font-semibold ${speakerColor}`}>
-                          {line.speaker}:
+                          {line.speaker}
+                          {voiceLabel && (
+                            <span className="text-xs ml-1 opacity-60">({voiceLabel})</span>
+                          )}:
                         </span>{" "}
                         <span className="text-gray-700">{line.text}</span>
                       </div>
