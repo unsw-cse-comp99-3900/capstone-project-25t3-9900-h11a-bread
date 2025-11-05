@@ -347,7 +347,7 @@ const Home: React.FC = () => {
         if (data.message === "AddTranscript") {
           for (const r of data.results) {
             // STRICT: Only process if explicitly marked as NOT partial
-            if (r.is_partial === true) {
+            if ((r as any).is_partial === true) {
               continue;
             }
 
@@ -519,9 +519,6 @@ const Home: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
-  /** UI helpers */
-  const combinedTranscript = lines.map((l) => `${l.speaker}: ${l.text}`).join("\n");
-
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center">
       <Header />
@@ -609,8 +606,30 @@ const Home: React.FC = () => {
               <div className="pb-2 px-10">
                 <p className="text-gray-700 text-lg font-semibold">Transcript</p>
               </div>
-              <div className="h-[420px] overflow-y-auto px-10 text-gray-700 leading-relaxed whitespace-pre-line">
-                {combinedTranscript || "…listening"}
+              <div className="h-[420px] overflow-y-auto px-10 leading-relaxed">
+                {lines.length === 0 ? (
+                  <p className="text-gray-500">…listening</p>
+                ) : (
+                  lines.map((line, idx) => {
+                    // Assign colors based on speaker
+                    const speakerColors: Record<string, string> = {
+                      S1: "text-blue-700",
+                      S2: "text-green-700",
+                      S3: "text-purple-700",
+                      S4: "text-orange-700",
+                    };
+                    const speakerColor = speakerColors[line.speaker] || "text-gray-700";
+                    
+                    return (
+                      <div key={idx} className="mb-3">
+                        <span className={`font-semibold ${speakerColor}`}>
+                          {line.speaker}:
+                        </span>{" "}
+                        <span className="text-gray-700">{line.text}</span>
+                      </div>
+                    );
+                  })
+                )}
               </div>
             </div>
             {!isRecording && (
