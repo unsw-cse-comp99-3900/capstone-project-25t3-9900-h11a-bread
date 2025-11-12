@@ -6,10 +6,10 @@ export type AccentOption = {
 };
 
 export const accentOptions: AccentOption[] = [
-  { label: "🇺🇸 American English",  value: "American" },
-  { label: "🇬🇧 British English",   value: "British" },
-  { label: "🇦🇺 Australian English",value: "Australian" },
-  { label: "🇮🇳 Indian English",    value: "Indian" },
+  { label: "🇺🇸 American English", value: "American" },
+  { label: "🇬🇧 British English", value: "British" },
+  { label: "🇦🇺 Australian English", value: "Australian" },
+  { label: "🇮🇳 Indian English", value: "Indian" },
 ];
 
 interface AccentDropdownProps {

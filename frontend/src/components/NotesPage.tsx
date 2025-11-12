@@ -1,14 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { format } from "date-fns";
-import {
-  Download,
-  ArrowLeft,
-  Edit3,
-  Check,
-  X,
-  Save,
-  Trash2,
-} from "lucide-react";
+import { Download, ArrowLeft, Edit3, X, Save, Trash2 } from "lucide-react";
 import Header from "./Header";
 import { useAuth } from "../hooks/useAuth";
 import { useNavigate } from "react-router-dom";
@@ -32,12 +24,6 @@ function groupNotesByDate(notes: Note[]): Record<string, Note[]> {
 
 function formatTime(date: Date) {
   return format(date, "h:mma").toLowerCase();
-}
-
-function formatDuration(seconds: number) {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}m${s.toString().padStart(2, "0")}s`;
 }
 
 function downloadTranscript(note: Note) {
@@ -242,12 +228,19 @@ const NotesPage: React.FC = () => {
 
   const itemsPerPage = 5;
   const [currentPage, setCurrentPage] = useState(1);
-  const totalPages = Math.ceil(transcripts.length / itemsPerPage);
+
+  const sortedTranscripts = [...transcripts].sort(
+    (a, b) =>
+      new Date(b.recordedAt).getTime() - new Date(a.recordedAt).getTime()
+  );
+
+  const totalPages = Math.ceil(sortedTranscripts.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedNotes = transcripts.slice(
+  const paginatedNotes = sortedTranscripts.slice(
     startIndex,
     startIndex + itemsPerPage
   );
+
   const groupedNotes = groupNotesByDate(
     paginatedNotes.map((n) => ({
       ...n,
@@ -312,11 +305,13 @@ const NotesPage: React.FC = () => {
                           <div className="flex flex-col">
                             <div className="text-gray-900 font-medium text-sm">
                               {note.notesName}{" "}
-                              <span className="text-gray-500 text-xs ml-1">
+                              {/* <span className="text-gray-500 text-xs ml-1">
                                 {formatTime(new Date(note.recordedAt))}
-                              </span>
+                              </span> */}
                             </div>
-                            <div className="text-gray-400 text-xs">11:11</div>
+                            <div className="text-gray-400 text-xs">
+                              {formatTime(new Date(note.recordedAt))}
+                            </div>
                           </div>
                           <button
                             onClick={(e) => {
