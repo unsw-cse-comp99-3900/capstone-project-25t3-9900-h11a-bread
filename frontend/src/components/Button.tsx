@@ -7,7 +7,7 @@ type AppButtonProps = {
   onClick?: (event: React.MouseEvent<HTMLButtonElement>) => void;
 } & ButtonHTMLAttributes<HTMLButtonElement>;
 
-function Button({ title, onClick }: AppButtonProps): JSX.Element {
+function Button({ title, onClick }: AppButtonProps) {
   return (
     <button
       type="button"

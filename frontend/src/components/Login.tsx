@@ -6,7 +6,7 @@ import { auth, provider } from "../firebase/firebase";
 import loginPicture from "../assets/login-picture.png";
 import { useAuth } from "../hooks/useAuth";
 
-const Login: JSX.Element = () => {
+const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { user } = useAuth();

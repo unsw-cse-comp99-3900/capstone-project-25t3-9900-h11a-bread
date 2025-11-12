@@ -51,7 +51,13 @@ export function useTranscripts(user: User | null) {
       const docSnap = await getDoc(transcriptRef);
 
       if (docSnap.exists()) {
-        return { id: docSnap.id, ...docSnap.data() };
+        const data = docSnap.data();
+        return {
+          id: docSnap.id,
+          notesContent: data.notesContent || "",
+          notesName: data.notesName || "Untitled",
+          recordedAt: data.recordedAt ? new Date(data.recordedAt) : new Date(),
+        };
       } else {
         console.warn("Transcript not found:", transcriptId);
         return null;

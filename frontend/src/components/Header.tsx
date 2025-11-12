@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 
-function Header(): JSX.Element {
+function Header() {
   const { user, logout, loading } = useAuth();
 
   const userName = user?.displayName;
