@@ -1,15 +1,12 @@
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { FcGoogle } from "react-icons/fc";
-import { signInWithPopup } from "firebase/auth";
-import { auth, provider, facebookprovider } from "../firebase/firebase";
 import loginPicture from "../assets/login-picture.png";
 import { useAuth } from "../hooks/useAuth";
 
 const Login: JSX.Element = () => {
-  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
-  const { user, loginWithGoogle, loginWithFacebook } = useAuth();
+  const { user, loginWithGoogle, loginWithFacebook, loading } = useAuth();
 
   useEffect(() => {
     if (user) {
@@ -33,16 +30,16 @@ const Login: JSX.Element = () => {
           <button
             className="w-full p-4 mb-5 border border-gray-300 rounded-xl bg-white text-gray-700 font-medium flex items-center gap-4 disabled:opacity-50 disabled:cursor-not-allowed"
             onClick={loginWithGoogle}
-            disabled={isLoading}
+            disabled={loading}
           >
             <FcGoogle className="w-6 h-6" />
-            {isLoading ? "Signing in..." : "Sign in with Google"}
+            {loading ? "Signing in..." : "Sign in with Google"}
           </button>
 
           <button
             className="w-full p-4 mb-4 border border-blue-600 rounded-xl bg-blue-600 text-white font-medium flex items-center gap-4"
             onClick={loginWithFacebook}
-            disabled={isLoading}
+            disabled={loading}
           >
             <div className="flex items-center justify-center w-6 h-6 bg-blue-700 rounded-sm">
               <span className="font-bold text-white text-sm">f</span>

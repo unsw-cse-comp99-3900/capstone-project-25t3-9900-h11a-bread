@@ -1,14 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { format } from "date-fns";
-import {
-  Download,
-  ArrowLeft,
-  Edit3,
-  Check,
-  X,
-  Save,
-  Trash2,
-} from "lucide-react";
+import { Download, ArrowLeft, Edit3, X, Save, Trash2 } from "lucide-react";
 import Header from "./Header";
 import { useAuth } from "../hooks/useAuth";
 import { useNavigate } from "react-router-dom";
@@ -32,12 +24,6 @@ function groupNotesByDate(notes: Note[]): Record<string, Note[]> {
 
 function formatTime(date: Date) {
   return format(date, "h:mma").toLowerCase();
-}
-
-function formatDuration(seconds: number) {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}m${s.toString().padStart(2, "0")}s`;
 }
 
 function downloadTranscript(note: Note) {
@@ -244,10 +230,20 @@ const NotesPage: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const totalPages = Math.ceil(transcripts.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedNotes = transcripts.slice(
+  const [reverseOrder, setReverseOrder] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+
+  let printTranscript = transcripts.filter((t) =>
+    t.notesName.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+  if (reverseOrder) {
+    printTranscript = [...printTranscript].reverse();
+  }
+  const paginatedNotes = printTranscript.slice(
     startIndex,
     startIndex + itemsPerPage
   );
+
   const groupedNotes = groupNotesByDate(
     paginatedNotes.map((n) => ({
       ...n,
@@ -284,8 +280,30 @@ const NotesPage: React.FC = () => {
       <Header />
       <main className="pt-32 flex justify-center px-8 py-6 items-center">
         <div className="w-full max-w-3xl">
-          <h2 className="text-lg font-medium text-gray-700 mb-5 h-8">
-            Welcome, {userName}
+          <h2 className="text-lg font-medium text-gray-700 mb-5 h-8 flex items-center justify-between">
+            <span>Welcome, {userName}</span>
+
+            <div className="flex items-center gap-3">
+              {/* Sort Toggle */}
+              <button
+                onClick={() => setReverseOrder((prev) => !prev)}
+                className="px-3 py-1 text-xs rounded-lg border border-gray-300 bg-white hover:bg-gray-100 shadow-sm transition"
+              >
+                {reverseOrder ? "Oldest → Newest" : "Newest → Oldest"}
+              </button>
+
+              {/* Search Input */}
+              <input
+                type="text"
+                placeholder="Search notes..."
+                value={searchTerm}
+                onChange={(e) => {
+                  setCurrentPage(1);
+                  setSearchTerm(e.target.value);
+                }}
+                className="px-3 py-1 text-xs w-36 border border-gray-300 bg-white rounded-lg shadow-sm focus:ring-2 focus:ring-blue-400 focus:outline-none transition"
+              />
+            </div>
           </h2>
 
           <div className="bg-white rounded-2xl shadow-sm p-8 h-[580px] flex flex-col justify-between">
