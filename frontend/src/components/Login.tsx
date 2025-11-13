@@ -1,6 +1,8 @@
-import { useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { FcGoogle } from "react-icons/fc";
+import { signInWithPopup } from "firebase/auth";
+import { auth, provider, facebookprovider } from "../firebase/firebase";
 import loginPicture from "../assets/login-picture.png";
 import { useAuth } from "../hooks/useAuth";
 
