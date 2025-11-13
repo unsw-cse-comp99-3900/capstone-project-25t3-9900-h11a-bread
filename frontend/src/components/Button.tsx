@@ -1,6 +1,4 @@
-import { type ButtonHTMLAttributes, type ReactNode } from "react";
-import { useNavigate } from "react-router-dom";
-
+import React, { type ButtonHTMLAttributes, type ReactNode } from "react";
 type AppButtonProps = {
   title: string;
   icon?: ReactNode;
@@ -8,7 +6,7 @@ type AppButtonProps = {
   onClick?: (event: React.MouseEvent<HTMLButtonElement>) => void;
 } & ButtonHTMLAttributes<HTMLButtonElement>;
 
-function Button({ title, icon, onClick }: AppButtonProps): JSX.Element {
+function Button({ title, onClick }: AppButtonProps): React.JSX.Element {
   return (
     <button
       type="button"

@@ -120,9 +120,13 @@ const Home: React.FC = () => {
   const voiceIndexRef = useRef<number>(0);
 
   /** ENV */
-  const API_KEY = import.meta.env.VITE_SPEECHMATICS_API_KEY as string | undefined;
+  const API_KEY = import.meta.env.VITE_SPEECHMATICS_API_KEY as
+    | string
+    | undefined;
   const AZURE_REGION = import.meta.env.VITE_AZURE_REGION as string | undefined;
-  const AZURE_KEY = import.meta.env.VITE_AZURE_SPEECH_API_KEY as string | undefined;
+  const AZURE_KEY = import.meta.env.VITE_AZURE_SPEECH_API_KEY as
+    | string
+    | undefined;
 
   /** Helpers */
   const normalize = (s: string) =>
@@ -135,22 +139,22 @@ const Home: React.FC = () => {
   /** Assign a unique voice to each speaker */
   function assignVoiceForSpeaker(speaker: string): string {
     if (!selectedAccent) return "";
-    
+
     // Check if this speaker already has a voice assigned
     if (speakerVoiceMap.current[speaker]) {
       return speakerVoiceMap.current[speaker];
     }
-    
+
     // Assign a new voice from the pool
     const voiceBank = VOICE_MAP[selectedAccent][selectedGender];
-    if (!voiceBank || voiceBank.length === 0) return "";
-    
+    if (!voiceBank) return "";
+
     const voiceIndex = voiceIndexRef.current % voiceBank.length;
     const assignedVoice = voiceBank[voiceIndex];
-    
+
     speakerVoiceMap.current[speaker] = assignedVoice;
     voiceIndexRef.current += 1;
-    
+
     console.log(`Assigned voice ${assignedVoice} to ${speaker}`);
     return assignedVoice;
   }
@@ -335,7 +339,7 @@ const Home: React.FC = () => {
         }
         lastEnd = re.lastIndex;
       }
-      
+
       // Speak all complete sentences with speaker info (fire-and-forget, non-blocking)
       for (const sent of sentences) {
         speakSentence(sent, speaker);
@@ -655,22 +659,25 @@ const Home: React.FC = () => {
                       S3: "text-purple-700",
                       S4: "text-orange-700",
                     };
-                    const speakerColor = speakerColors[line.speaker] || "text-gray-700";
-                    
+                    const speakerColor =
+                      speakerColors[line.speaker] || "text-gray-700";
+
                     // Get assigned voice for this speaker
                     const assignedVoice = speakerVoiceMap.current[line.speaker];
                     const voiceLabel = assignedVoice
                       ? assignedVoice.replace(/^.*-([A-Za-z]+)Neural$/, "$1")
                       : "";
 
-                    
                     return (
                       <div key={idx} className="mb-3">
                         <span className={`font-semibold ${speakerColor}`}>
                           {line.speaker}
                           {voiceLabel && (
-                            <span className="text-xs ml-1 opacity-60">({voiceLabel})</span>
-                          )}:
+                            <span className="text-xs ml-1 opacity-60">
+                              ({voiceLabel})
+                            </span>
+                          )}
+                          :
                         </span>{" "}
                         <span className="text-gray-700">{line.text}</span>
                       </div>

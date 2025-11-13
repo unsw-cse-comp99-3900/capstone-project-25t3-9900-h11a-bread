@@ -255,7 +255,9 @@ const NotesPage: React.FC = () => {
 
   const handleDetail = async (id: string) => {
     const fullNote = await fetchTranscriptById(id);
-    setSelectedNote(fullNote);
+    if (fullNote) {
+      setSelectedNote(fullNote);
+    }
   };
 
   if (!user) {

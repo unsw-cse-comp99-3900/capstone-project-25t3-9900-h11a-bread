@@ -1,10 +1,10 @@
-import { useEffect } from "react";
+import React, { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { FcGoogle } from "react-icons/fc";
 import loginPicture from "../assets/login-picture.png";
 import { useAuth } from "../hooks/useAuth";
 
-const Login: JSX.Element = () => {
+const Login = (): React.JSX.Element => {
   const navigate = useNavigate();
   const { user, loginWithGoogle, loginWithFacebook, loading } = useAuth();
 
