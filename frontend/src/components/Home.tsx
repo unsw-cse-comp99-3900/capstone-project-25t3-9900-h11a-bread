@@ -3,6 +3,7 @@ import Header from "./Header";
 import { RealtimeClient } from "@speechmatics/real-time-client";
 import { createSpeechmaticsJWT } from "@speechmatics/auth";
 import AccentDropdown from "./AccentDropdown";
+import AudioModeToggle from "./AudioModeToggle";
 import { Download } from "lucide-react";
 import * as sdk from "microsoft-cognitiveservices-speech-sdk";
 import { useTranscripts } from "../hooks/useTranscripts";
@@ -78,6 +79,7 @@ const VOICE_MAP = {
 
 type AccentKey = keyof typeof VOICE_MAP;
 type GenderKey = "male" | "female";
+type AudioMode = "headphones" | "speakers";
 
 const Home: React.FC = () => {
   /** Auth and Transcripts */
@@ -89,6 +91,7 @@ const Home: React.FC = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [hasStarted, setHasStarted] = useState(false);
   const [error, setError] = useState("");
+  const [audioMode, setAudioMode] = useState<AudioMode>("speakers");
 
   /** Transcript (single speaker run) */
   const [lines, setLines] = useState<Array<{ speaker: string; text: string }>>(
@@ -260,6 +263,11 @@ const Home: React.FC = () => {
 
       setIsPlaying(true);
 
+      // Speaker Mode: Mute microphone during playback to prevent echo
+      if (audioMode === "speakers" && preGainRef.current) {
+        preGainRef.current.gain.value = 0.0;
+      }
+
       const wavBytes = audioQueue[0];
       try {
         const audioBuf = await ctx.decodeAudioData(
@@ -271,6 +279,10 @@ const Home: React.FC = () => {
         src.connect(ctx.destination);
 
         src.onended = () => {
+          // When the playback is done speaking, restore mic (in speaker mode)
+          if (audioMode === "speakers" && preGainRef.current) {
+            preGainRef.current.gain.value = 1.2;
+          }
           setAudioQueue((prev) => prev.slice(1));
           setIsPlaying(false);
         };
@@ -280,12 +292,16 @@ const Home: React.FC = () => {
         src.start(startAt);
       } catch (e) {
         console.error("Audio decode error:", e);
+        // Restore microphone on error
+        if (audioMode === "speakers" && preGainRef.current) {
+          preGainRef.current.gain.value = 1.2;
+        }
         // On decode error, drop this item to keep pipeline moving
         setAudioQueue((prev) => prev.slice(1));
         setIsPlaying(false);
       }
     })();
-  }, [audioQueue, isPlaying]);
+  }, [audioQueue, isPlaying, audioMode]);
 
   /** Sentence buffering (finals only) */
   const bufferRef = useRef<string>("");
@@ -570,9 +586,16 @@ const Home: React.FC = () => {
     <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center">
       <Header />
 
-      <main className="p-32 flex justify-center items-center">
-        <div className="bg-white rounded-2xl shadow-md p-10 w-[320px] h-[580px] flex flex-col items-center justify-center">
-          <AccentDropdown
+      <main className="p-32 flex flex-col items-center justify-center gap-4">
+        <AudioModeToggle
+          selectedMode={audioMode}
+          onModeChange={setAudioMode}
+          disabled={isRecording}
+        />
+
+        <div className="flex justify-center items-center">
+          <div className="bg-white rounded-2xl shadow-md p-10 w-[320px] h-[580px] flex flex-col items-center justify-center">
+            <AccentDropdown
             selectedAccent={selectedAccent}
             selectedGender={selectedGender}
             onAccentChange={(accent) => {
@@ -711,6 +734,7 @@ const Home: React.FC = () => {
             )}
           </div>
         )}
+        </div>
       </main>
 
       {error && (
