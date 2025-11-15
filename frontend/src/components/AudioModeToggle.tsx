@@ -16,7 +16,7 @@ const AudioModeToggle: React.FC<AudioModeToggleProps> = ({
   return (
     <div className="flex flex-col items-center gap-2">
       <div className="flex items-center gap-2">
-        {/* headphones Mode (Headphones) */}
+        {/* Headphone Mode */}
         <button
           onClick={() => onModeChange("headphones")}
           disabled={disabled}
@@ -31,7 +31,7 @@ const AudioModeToggle: React.FC<AudioModeToggleProps> = ({
           <span className="text-xs font-medium">Headphones</span>
         </button>
 
-        {/* Speakers Mode (Conversation) */}
+        {/* Speakers Mode */}
         <button
           onClick={() => onModeChange("speakers")}
           disabled={disabled}
