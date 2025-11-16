@@ -23,9 +23,10 @@ export async function summarizeText(text: string): Promise<string> {
     : text;
 
   // Calculate dynamic max_tokens based on word count
-  // Formula: total word count / 5, with minimum of 30 tokens for short texts
+  // Formula: total word count / 3 to allow complete sentences
+  // Minimum 50 tokens ensures summary is not cut off mid-sentence
   const wordCount = truncatedText.trim().split(/\s+/).length;
-  const dynamicMaxTokens = Math.max(30, Math.floor(wordCount / 5));
+  const dynamicMaxTokens = Math.max(50, Math.floor(wordCount / 3));
 
   try {
     const response = await fetch(DEEPSEEK_API_URL, {
