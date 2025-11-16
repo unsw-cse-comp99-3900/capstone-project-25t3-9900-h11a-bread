@@ -3,7 +3,7 @@ import { RealtimeClient } from "@speechmatics/real-time-client";
 import { createSpeechmaticsJWT } from "@speechmatics/auth";
 
 export function useSpeechToText() {
-  /** STT runtime */
+  /** STT runtime refs */
   const clientRef = useRef<RealtimeClient | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -11,7 +11,7 @@ export function useSpeechToText() {
   const preGainRef = useRef<GainNode | null>(null);
   const processedFinalIds = useRef<Set<string>>(new Set());
 
-  /** Start Recording */
+  /** Start Recording with confidence threshold checking */
   const startRecording = async (
     API_KEY: string | undefined,
     onTranscriptReceived: (piece: string, speaker: string, resultId: string) => Promise<void>,
@@ -43,12 +43,12 @@ export function useSpeechToText() {
 
             const CONFIDENCE_THRESHOLD = 0.7;
             
-            // Speechmatics 返回的是单个词级别的结果（type: "word"）
-            // 检查每个词的置信度
+            // Speechmatics returns word-level results (type: "word")
+            // Check confidence for each word
             const confidence = alternative.confidence;
             const content = alternative.content || "";
             
-            // 如果置信度低于阈值，替换为 [ __ ]
+            // Replace with [ __ ] if confidence is below threshold
             let processedText = content;
             if (confidence !== undefined && confidence < CONFIDENCE_THRESHOLD) {
               processedText = "[ __ ]";
@@ -61,11 +61,13 @@ export function useSpeechToText() {
             const speaker = alternative.speaker || "S1";
             const resultId = `${r.start_time || 0}-${r.end_time || 0}-${speaker}-${piece}`;
 
+            // Prevent duplicate processing
             if (processedFinalIds.current.has(resultId)) {
               continue;
             }
             processedFinalIds.current.add(resultId);
             
+            // Keep only last 100 IDs to prevent memory leak
             if (processedFinalIds.current.size > 100) {
               const arr = Array.from(processedFinalIds.current);
               processedFinalIds.current = new Set(arr.slice(-100));
@@ -109,6 +111,7 @@ export function useSpeechToText() {
         },
       });
 
+      // Get microphone stream with 16kHz sample rate
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           channelCount: 1,
@@ -120,6 +123,7 @@ export function useSpeechToText() {
       });
       mediaStreamRef.current = stream;
 
+      // Create audio context for processing
       const ac = new (window.AudioContext ||
         (window as any).webkitAudioContext)({ sampleRate: 16000 });
       audioContextRef.current = ac;
@@ -127,10 +131,12 @@ export function useSpeechToText() {
 
       const source = ac.createMediaStreamSource(stream);
 
+      // Apply pre-gain for audio boost
       const preGain = ac.createGain();
       preGain.gain.value = 1.2;
       preGainRef.current = preGain;
 
+      // Setup audio worklet for processing
       const node = new AudioWorkletNode(ac, "audio-processor");
       workletNodeRef.current = node;
       node.port.onmessage = (e) => {
@@ -143,6 +149,7 @@ export function useSpeechToText() {
         }
       };
 
+      // Audio chain: mic -> preGain -> worklet
       source.connect(preGain);
       preGain.connect(node);
 

@@ -350,34 +350,34 @@ const Home: React.FC = () => {
     }
   }
 
-  /** Start Recording - 使用STT Hook */
+  /** Start Recording - Using STT Hook */
   const startRecording = async () => {
-      setHasStarted(true);
-      setLines([]);
-      bufferRef.current = "";
-      lastUtteranceRef.current = "";
-      recentSetRef.current = [];
+    setHasStarted(true);
+    setLines([]);
+    bufferRef.current = "";
+    lastUtteranceRef.current = "";
+    recentSetRef.current = [];
     speakerVoiceMap.current = {};
     voiceIndexRef.current = 0;
-      setAudioQueue([]);
+    setAudioQueue([]);
 
     const API_KEY = import.meta.env.VITE_SPEECHMATICS_API_KEY as string | undefined;
 
     await startSTT(
       API_KEY,
       async (piece: string, speaker: string, resultId: string) => {
-            await handleFinalChunk(piece, speaker, resultId);
+        await handleFinalChunk(piece, speaker, resultId);
       },
       (errorMsg: string) => {
         setError(errorMsg);
       },
       () => {
-          const tail = bufferRef.current.trim();
-          if (tail) {
-            const lastSpeaker = lines[lines.length - 1]?.speaker || "S1";
-            speakSentence(tail, lastSpeaker);
-          }
-          bufferRef.current = "";
+        const tail = bufferRef.current.trim();
+        if (tail) {
+          const lastSpeaker = lines[lines.length - 1]?.speaker || "S1";
+          speakSentence(tail, lastSpeaker);
+        }
+        bufferRef.current = "";
       },
       setIsLoading,
       setIsRecording,
@@ -385,7 +385,7 @@ const Home: React.FC = () => {
     );
   };
 
-  /** Stop Recording - 使用STT Hook */
+  /** Stop Recording - Using STT Hook */
   const stopRecording = () => {
     stopSTT(setIsRecording, setError);
   };
