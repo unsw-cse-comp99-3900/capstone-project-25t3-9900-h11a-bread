@@ -22,11 +22,14 @@ export async function summarizeText(text: string): Promise<string> {
     ? text.substring(0, maxLength) + "\n\n[Text truncated due to length...]"
     : text;
 
-  // Calculate dynamic max_tokens based on word count
-  // Formula: total word count / 3 to allow complete sentences
-  // Minimum 50 tokens ensures summary is not cut off mid-sentence
+  // Calculate target summary length (words)
+  // Formula: input word count / 5, minimum 20 words for short texts
   const wordCount = truncatedText.trim().split(/\s+/).length;
-  const dynamicMaxTokens = Math.max(50, Math.floor(wordCount / 3));
+  const targetWords = Math.max(20, Math.floor(wordCount / 5));
+  
+  // Set max_tokens as buffer (target words * 2 for safety)
+  // This prevents hard cutoff while AI aims for target length
+  const maxTokensBuffer = Math.max(50, targetWords * 2);
 
   try {
     const response = await fetch(DEEPSEEK_API_URL, {
@@ -44,11 +47,11 @@ export async function summarizeText(text: string): Promise<string> {
           },
           {
             role: "user",
-            content: `Please provide a concise summary of the following transcript in one paragraph. Focus on the key information and main topics discussed. Write in plain text without any markdown syntax, bullet points, asterisks, or special formatting:\n\n${truncatedText}`
+            content: `Please provide a concise summary of the following transcript in approximately ${targetWords} words. Write one complete paragraph that captures the key information and main topics discussed. Use plain text without any markdown syntax, bullet points, asterisks, or special formatting:\n\n${truncatedText}`
           }
         ],
         temperature: 0.7,
-        max_tokens: dynamicMaxTokens,
+        max_tokens: maxTokensBuffer,
       }),
     });
 
