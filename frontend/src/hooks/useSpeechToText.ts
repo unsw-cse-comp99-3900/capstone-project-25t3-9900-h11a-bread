@@ -14,7 +14,7 @@ export function useSpeechToText() {
   /** Start Recording */
   const startRecording = async (
     API_KEY: string | undefined,
-    onTranscriptReceived: (piece: string, speaker: string, resultId: string) => Promise<void>,
+    onTranscriptReceived: (piece: string, speaker: string, resultId: string) => void | Promise<void>,
     onError: (error: string) => void,
     onEndOfTranscript: () => void,
     setIsLoading: (loading: boolean) => void,
@@ -43,12 +43,12 @@ export function useSpeechToText() {
 
             const CONFIDENCE_THRESHOLD = 0.7;
             
-            // Speechmatics 返回的是单个词级别的结果（type: "word"）
-            // 检查每个词的置信度
+            // Speechmatics returns word-level results (type: "word")
+            // Check confidence for each word
             const confidence = alternative.confidence;
             const content = alternative.content || "";
             
-            // 如果置信度低于阈值，替换为 [ __ ]
+            // If confidence is below threshold, replace with [ __ ]
             let processedText = content;
             if (confidence !== undefined && confidence < CONFIDENCE_THRESHOLD) {
               processedText = "[ __ ]";

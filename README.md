@@ -20,6 +20,7 @@ The application is entirely client-side, with the React frontend communicating d
 - **Voice options** - Choose male or female voices (5 voice variants per accent/gender)
 - **Transcript management** - Save, edit, rename, and delete transcripts in Firebase
 - **Enhanced accuracy** - Uses Speechmatics "enhanced" mode with 3-second max delay for better context
+- **AI Summary** ✨ **NEW** - Generate intelligent summaries of your transcripts using DeepSeek V3 via SiliconFlow API
 
 ## Tech Stack
 
@@ -72,6 +73,7 @@ The application is entirely client-side, with the React frontend communicating d
    VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
    VITE_FIREBASE_APP_ID=your_app_id
    VITE_FIREBASE_MEASUREMENT_ID=your_measurement_id
+   VITE_DEEPSEEK_API_KEY=your_deepseek_key  # Optional, for AI Summary feature
    ```
 
 4. **Run the development server**
@@ -152,6 +154,17 @@ Soon-to-be implemented: Headphones mode (no mute when AI voice is speaking) and 
 **De-duplication**: We track processed message IDs from Speechmatics and normalize text to prevent speaking the same sentence twice.
 
 **Non-Blocking TTS**: Speech synthesis runs asynchronously without blocking transcription processing, ensuring smooth real-time performance even during playback.
+
+## AI Summary Feature
+
+The AI Summary feature uses DeepSeek V3 via SiliconFlow API to generate concise summaries of your transcripts. Simply open any saved transcript and click the purple sparkles (✨) icon to generate a paragraph summary.
+
+**Setup:**
+1. Get a free API key from [SiliconFlow](https://cloud.siliconflow.cn/) 
+2. Add `VITE_DEEPSEEK_API_KEY` to your `.env` file
+3. Restart the development server
+
+**Cost:** Very affordable 
 
 ## Available Scripts
 
