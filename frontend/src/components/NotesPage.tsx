@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { format } from "date-fns";
-import { Download, ArrowLeft, Edit3, X, Save, Trash2 } from "lucide-react";
+import { Download, ArrowLeft, Edit3, X, Save, Trash2, Sparkles } from "lucide-react";
 import Header from "./Header";
 import { useAuth } from "../hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { useTranscripts } from "../hooks/useTranscripts";
+import { summarizeText } from "../utils/deepseek";
 
 interface Note {
   id: string;
@@ -67,6 +68,10 @@ const NoteDetail: React.FC<NoteDetailProps> = ({
   const [editedContent, setEditedContent] = useState(note.notesContent || "");
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isSummarizing, setIsSummarizing] = useState(false);
+  const [summary, setSummary] = useState<string>("");
+  const [showSummary, setShowSummary] = useState(false);
+  const [summaryError, setSummaryError] = useState<string>("");
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -85,6 +90,22 @@ const NoteDetail: React.FC<NoteDetailProps> = ({
     await deleteTranscript(note.id);
     setIsDeleting(false);
     onBack();
+  };
+
+  const handleSummarize = async () => {
+    setIsSummarizing(true);
+    setSummaryError("");
+    try {
+      const result = await summarizeText(note.notesContent);
+      setSummary(result);
+      setShowSummary(true);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to generate summary";
+      setSummaryError(errorMessage);
+      console.error("Summarization error:", error);
+    } finally {
+      setIsSummarizing(false);
+    }
   };
 
   return (
@@ -122,6 +143,15 @@ const NoteDetail: React.FC<NoteDetailProps> = ({
               <div className="flex items-center gap-3">
                 {!isEditing && (
                   <>
+                    <button
+                      onClick={handleSummarize}
+                      disabled={isSummarizing}
+                      className="hover:scale-110 transition text-purple-600 disabled:opacity-50"
+                      title="AI Summary"
+                    >
+                      <Sparkles className={`w-5 h-5 ${isSummarizing ? 'animate-pulse' : ''}`} />
+                    </button>
+
                     <button
                       onClick={() => downloadTranscript(note)}
                       className="hover:scale-110 transition"
@@ -185,6 +215,42 @@ const NoteDetail: React.FC<NoteDetailProps> = ({
                 : ""}
             </p>
 
+            {/* Summary Section */}
+            {showSummary && summary && (
+              <div className="mb-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-semibold text-purple-900 flex items-center gap-2">
+                    <Sparkles className="w-4 h-4" />
+                    AI Summary
+                  </h3>
+                  <button
+                    onClick={() => setShowSummary(false)}
+                    className="text-purple-600 hover:text-purple-800"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">
+                  {summary}
+                </div>
+              </div>
+            )}
+
+            {/* Summary Error */}
+            {summaryError && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-red-700">{summaryError}</p>
+                  <button
+                    onClick={() => setSummaryError("")}
+                    className="text-red-600 hover:text-red-800"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Content area */}
             {isEditing ? (
               <textarea
@@ -194,8 +260,10 @@ const NoteDetail: React.FC<NoteDetailProps> = ({
               />
             ) : (
               <div
-                className="text-gray-800 text-[15px] leading-relaxed whitespace-pre-line 
-                max-h-[70vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 h-[415px] my-5"
+                className={`text-gray-800 text-[15px] leading-relaxed whitespace-pre-line 
+                max-h-[70vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 my-5 ${
+                  showSummary ? 'h-[280px]' : 'h-[415px]'
+                }`}
               >
                 {note.notesContent}
               </div>

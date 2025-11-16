@@ -1,12 +1,11 @@
 import { useState, useRef, useEffect } from "react";
 import Header from "./Header";
-import { RealtimeClient } from "@speechmatics/real-time-client";
-import { createSpeechmaticsJWT } from "@speechmatics/auth";
 import AccentDropdown from "./AccentDropdown";
 import { Download } from "lucide-react";
 import * as sdk from "microsoft-cognitiveservices-speech-sdk";
 import { useTranscripts } from "../hooks/useTranscripts";
 import { useAuth } from "../hooks/useAuth";
+import { useSpeechToText } from "../hooks/useSpeechToText";
 
 /* ---------- Azure voice map ---------- */
 const VOICE_MAP = {
@@ -84,6 +83,9 @@ const Home: React.FC = () => {
   const { user } = useAuth();
   const { addTranscript } = useTranscripts(user);
 
+  /** STT Hook */
+  const { startRecording: startSTT, stopRecording: stopSTT } = useSpeechToText();
+
   /** UI / state */
   const [isLoading, setIsLoading] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -94,13 +96,6 @@ const Home: React.FC = () => {
   const [lines, setLines] = useState<Array<{ speaker: string; text: string }>>(
     []
   );
-
-  /** STT runtime */
-  const clientRef = useRef<RealtimeClient | null>(null);
-  const mediaStreamRef = useRef<MediaStream | null>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const workletNodeRef = useRef<AudioWorkletNode | null>(null);
-  const preGainRef = useRef<GainNode | null>(null);
 
   /** Selection */
   const [selectedAccent, setSelectedAccent] = useState<AccentKey | "">("");
@@ -289,26 +284,12 @@ const Home: React.FC = () => {
 
   /** Sentence buffering (finals only) */
   const bufferRef = useRef<string>("");
-  const processedFinalIds = useRef<Set<string>>(new Set());
 
-  async function handleFinalChunk(
+  function handleFinalChunk(
     text: string,
     speaker: string,
-    resultId?: string
+    _resultId?: string
   ) {
-    // Skip if we've already processed this exact final result
-    if (resultId && processedFinalIds.current.has(resultId)) {
-      return;
-    }
-    if (resultId) {
-      processedFinalIds.current.add(resultId);
-      // Keep only last 100 IDs to prevent memory leak
-      if (processedFinalIds.current.size > 100) {
-        const arr = Array.from(processedFinalIds.current);
-        processedFinalIds.current = new Set(arr.slice(-100));
-      }
-    }
-
     // Append to transcript with speaker diarization
     setLines((prev) => {
       if (prev.length) {
@@ -367,173 +348,37 @@ const Home: React.FC = () => {
 
   /** Start Recording */
   const startRecording = async () => {
-    try {
-      setIsLoading(true);
-      setError("");
-      setHasStarted(true);
-      setLines([]);
-      bufferRef.current = "";
-      lastUtteranceRef.current = "";
-      recentSetRef.current = [];
-      processedFinalIds.current.clear();
-      speakerVoiceMap.current = {}; // Reset speaker-voice mapping
-      voiceIndexRef.current = 0; // Reset voice index
-      setAudioQueue([]);
+    setHasStarted(true);
+    setLines([]);
+    bufferRef.current = "";
+    lastUtteranceRef.current = "";
+    recentSetRef.current = [];
+    speakerVoiceMap.current = {}; // Reset speaker-voice mapping
+    voiceIndexRef.current = 0; // Reset voice index
+    setAudioQueue([]);
 
-      if (!API_KEY) throw new Error("Missing Speechmatics API key");
-
-      const client = new RealtimeClient();
-      clientRef.current = client;
-
-      client.addEventListener("receiveMessage", async ({ data }) => {
-        if (data.message === "AddTranscript") {
-          for (const r of data.results) {
-            // STRICT: Only process if explicitly marked as NOT partial
-            if ((r as any).is_partial === true) {
-              continue;
-            }
-
-            const piece = (r.alternatives?.[0]?.content || "").trim();
-            if (!piece) continue;
-
-            // Extract speaker label from Speechmatics (e.g., "S1", "S2", etc.)
-            const speaker = r.alternatives?.[0]?.speaker || "S1";
-
-            // Use a unique ID to prevent processing the same final twice
-            const resultId = `${r.start_time || 0}-${
-              r.end_time || 0
-            }-${speaker}-${piece}`;
-
-            if (processedFinalIds.current.has(resultId)) {
-              continue;
-            }
-
-            await handleFinalChunk(piece, speaker, resultId);
-          }
-        } else if (data.message === "Error") {
-          console.error("Speechmatics error:", data);
-          setError(`Speechmatics error: ${data.type} ${data.reason || ""}`);
-          stopRecording();
-        } else if (data.message === "EndOfTranscript") {
-          const tail = bufferRef.current.trim();
-          if (tail) {
-            const lastSpeaker = lines[lines.length - 1]?.speaker || "S1";
-            speakSentence(tail, lastSpeaker);
-          }
-          bufferRef.current = "";
+    await startSTT(
+      API_KEY,
+      handleFinalChunk,
+      (err) => setError(err),
+      () => {
+        // onEndOfTranscript
+        const tail = bufferRef.current.trim();
+        if (tail) {
+          const lastSpeaker = lines[lines.length - 1]?.speaker || "S1";
+          speakSentence(tail, lastSpeaker);
         }
-      });
-
-      const jwt = await createSpeechmaticsJWT({
-        type: "rt",
-        apiKey: API_KEY,
-        ttl: 3600,
-      });
-
-      await client.start(jwt, {
-        audio_format: {
-          type: "raw",
-          encoding: "pcm_s16le",
-          sample_rate: 16000,
-        },
-        transcription_config: {
-          language: "en",
-          operating_point: "enhanced",
-          max_delay: 3.0,
-          enable_partials: false,
-          diarization: "speaker",
-          speaker_diarization_config: {
-            max_speakers: 5,
-          },
-          transcript_filtering_config: { remove_disfluencies: true },
-        },
-      });
-
-      // Mic (headphones) + worklet (20ms frames)
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          channelCount: 1,
-          sampleRate: 16000,
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false,
-        },
-      });
-      mediaStreamRef.current = stream;
-
-      const ac = new (window.AudioContext ||
-        (window as any).webkitAudioContext)({ sampleRate: 16000 });
-      audioContextRef.current = ac;
-      await ac.audioWorklet.addModule("/audio-processor.js");
-
-      const source = ac.createMediaStreamSource(stream);
-
-      const preGain = ac.createGain();
-      preGain.gain.value = 1.2;
-      preGainRef.current = preGain;
-
-      const node = new AudioWorkletNode(ac, "audio-processor");
-      workletNodeRef.current = node;
-      node.port.onmessage = (e) => {
-        if (clientRef.current) {
-          try {
-            clientRef.current.sendAudio(e.data);
-          } catch (err) {
-            console.error("Error sending audio:", err);
-          }
-        }
-      };
-
-      // chain: mic -> preGain -> worklet
-      source.connect(preGain);
-      preGain.connect(node);
-
-      setIsRecording(true);
-    } catch (err) {
-      console.error("Error starting recording:", err);
-      setError(
-        `Failed to start recording: ${
-          err instanceof Error ? err.message : String(err)
-        }`
-      );
-    } finally {
-      setIsLoading(false);
-    }
+        bufferRef.current = "";
+      },
+      setIsLoading,
+      setIsRecording,
+      setError
+    );
   };
 
   /** Stop Recording */
   const stopRecording = () => {
-    try {
-      if (workletNodeRef.current) {
-        workletNodeRef.current.disconnect();
-        workletNodeRef.current.port.onmessage = null;
-        workletNodeRef.current = null;
-      }
-      if (preGainRef.current) {
-        preGainRef.current.disconnect();
-        preGainRef.current = null;
-      }
-      if (clientRef.current) {
-        clientRef.current.stopRecognition({ noTimeout: true });
-        clientRef.current = null;
-      }
-      if (mediaStreamRef.current) {
-        mediaStreamRef.current.getTracks().forEach((t) => t.stop());
-        mediaStreamRef.current = null;
-      }
-      if (audioContextRef.current) {
-        audioContextRef.current.close();
-        audioContextRef.current = null;
-      }
-      setIsRecording(false);
-    } catch (err) {
-      console.error("Error stopping recording:", err);
-      setError(
-        `Failed to stop recording: ${
-          err instanceof Error ? err.message : String(err)
-        }`
-      );
-    }
+    stopSTT(setIsRecording, setError);
   };
 
   const handleButtonClick = () => {
