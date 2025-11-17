@@ -9,7 +9,6 @@ export function useSpeechToText(preGainRef: RefObject<GainNode | null>  // Accep
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const workletNodeRef = useRef<AudioWorkletNode | null>(null);
-  // const preGainRef = useRef<GainNode | null>(null);
   const processedFinalIds = useRef<Set<string>>(new Set());
 
   /** Start Recording */
