@@ -76,7 +76,9 @@ export function useTextToSpeech(
         (r) => {
           try {
             synthesizer.close();
-          } catch {}
+          } catch (closeErr) {
+            console.warn("Failed to close synthesizer after success:", closeErr);
+          }
           if (r.reason === sdk.ResultReason.SynthesizingAudioCompleted) {
             resolve(r.audioData as ArrayBuffer);
           } else {
@@ -86,7 +88,9 @@ export function useTextToSpeech(
         (err) => {
           try {
             synthesizer.close();
-          } catch {}
+          } catch (closeErr) {
+            console.warn("Failed to close synthesizer after error:", closeErr);
+          }
           reject(err);
         }
       );
@@ -139,14 +143,26 @@ export function useTextToSpeech(
       if (isPlaying || audioQueue.length === 0) return;
 
       if (!playCtxRef.current) {
-        playCtxRef.current = new (window.AudioContext ||
-          (window as any).webkitAudioContext)();
+        const AudioContextCtor = window.AudioContext ||
+          (window as Window & {
+            webkitAudioContext?: typeof AudioContext;
+          }).webkitAudioContext;
+        if (!AudioContextCtor) {
+          console.error("Web Audio API not supported in this browser");
+          return;
+        }
+        playCtxRef.current = new AudioContextCtor();
       }
+      
       const ctx = playCtxRef.current;
+      if (!ctx) return;
+
       if (ctx.state === "suspended") {
         try {
           await ctx.resume();
-        } catch {}
+        } catch (err) {
+          console.warn("Failed to resume AudioContext:", err);
+        }
       }
 
       setIsPlaying(true);
@@ -185,7 +201,7 @@ export function useTextToSpeech(
         setIsPlaying(false);
       }
     })();
-  }, [audioQueue, isPlaying, audioMode]);
+  }, [audioQueue, isPlaying, audioMode, preGainRef]);
 
   /** Handle final chunk and extract sentences */
   async function handleFinalChunk(text: string, speaker: string) {

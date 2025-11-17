@@ -2,6 +2,27 @@ import { useRef, type RefObject } from "react";
 import { RealtimeClient } from "@speechmatics/real-time-client";
 import { createSpeechmaticsJWT } from "@speechmatics/auth";
 
+// Types for Speechmatics messages
+interface SpeechmaticsAlternative {
+  content?: string;
+  confidence?: number;
+  speaker?: string;
+}
+
+interface SpeechmaticsResult {
+  is_partial?: boolean;
+  start_time?: number;
+  end_time?: number;
+  alternatives?: SpeechmaticsAlternative[];
+}
+
+interface SpeechmaticsMessage {
+  message: string;
+  results?: SpeechmaticsResult[];
+  type?: string;
+  reason?: string;
+}
+
 export function useSpeechToText(preGainRef: RefObject<GainNode | null>  // Accept preGainRef as parameter
 ) {
   /** STT runtime */
@@ -31,10 +52,11 @@ export function useSpeechToText(preGainRef: RefObject<GainNode | null>  // Accep
       const client = new RealtimeClient();
       clientRef.current = client;
 
-      client.addEventListener("receiveMessage", async ({ data }: { data: any }) => {
+      client.addEventListener("receiveMessage", async ({ data }: { data: SpeechmaticsMessage }) => {
         if (data.message === "AddTranscript") {
-          for (const r of data.results) {
-            if ((r as any).is_partial === true) {
+          const results = data.results ?? [];
+          for (const r of results) {
+            if (r.is_partial === true) {
               continue;
             }
 
@@ -85,7 +107,7 @@ export function useSpeechToText(preGainRef: RefObject<GainNode | null>  // Accep
       });
 
       const jwt = await createSpeechmaticsJWT({
-        type: "rt" as "rt",
+        type: "rt",
         apiKey: API_KEY!,
         ttl: 3600,
       });
@@ -120,8 +142,17 @@ export function useSpeechToText(preGainRef: RefObject<GainNode | null>  // Accep
       });
       mediaStreamRef.current = stream;
 
-      const ac = new (window.AudioContext ||
-        (window as any).webkitAudioContext)({ sampleRate: 16000 });
+      const AudioContextCtor =
+        window.AudioContext ||
+        (window as Window & { webkitAudioContext?: typeof AudioContext })
+          .webkitAudioContext;
+
+      if (!AudioContextCtor) {
+        throw new Error("Web Audio API not supported in this browser");
+      }
+
+      const ac = new AudioContextCtor({ sampleRate: 16000 });
+
       audioContextRef.current = ac;
       await ac.audioWorklet.addModule("/audio-processor.js");
 
@@ -133,7 +164,7 @@ export function useSpeechToText(preGainRef: RefObject<GainNode | null>  // Accep
 
       const node = new AudioWorkletNode(ac, "audio-processor");
       workletNodeRef.current = node;
-      node.port.onmessage = (e) => {
+      node.port.onmessage = (e: MessageEvent<ArrayBuffer>) => {
         if (clientRef.current) {
           try {
             clientRef.current.sendAudio(e.data);
