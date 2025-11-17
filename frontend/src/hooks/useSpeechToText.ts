@@ -1,14 +1,15 @@
-import { useRef } from "react";
+import { useRef, type RefObject } from "react";
 import { RealtimeClient } from "@speechmatics/real-time-client";
 import { createSpeechmaticsJWT } from "@speechmatics/auth";
 
-export function useSpeechToText() {
+export function useSpeechToText(preGainRef: RefObject<GainNode | null>  // Accept preGainRef as parameter
+) {
   /** STT runtime */
   const clientRef = useRef<RealtimeClient | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const workletNodeRef = useRef<AudioWorkletNode | null>(null);
-  const preGainRef = useRef<GainNode | null>(null);
+  // const preGainRef = useRef<GainNode | null>(null);
   const processedFinalIds = useRef<Set<string>>(new Set());
 
   /** Start Recording */
