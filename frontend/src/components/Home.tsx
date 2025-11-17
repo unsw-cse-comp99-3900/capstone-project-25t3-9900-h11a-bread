@@ -45,7 +45,7 @@ const Home: React.FC = () => {
   /** STT Hook */
   const { startRecording: startSTT, stopRecording: stopSTT } = useSpeechToText(preGainRef);
 
-  /** TTS Hook - now receives audioMode and preGainRef for mic control */
+  /** TTS Hook */
   const {
     handleFinalChunk,
     flushBuffer,
