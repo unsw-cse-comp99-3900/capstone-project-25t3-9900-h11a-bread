@@ -5,17 +5,37 @@ import type { AccentKey, GenderKey } from "../utils/voiceMap";
 
 type AudioMode = "headphones" | "speakers";
 
+
+
+type AudioJob = {
+  id?: string; // chunkId / resultId from STT
+  data: ArrayBuffer;
+  requestedAtMs: number;
+  text: string;
+  speaker: string;
+};
+
+type OnPlaybackStart = (info: {
+  chunkId?: string;
+  text: string;
+  speaker: string;
+  requestedAtMs: number;
+  playbackScheduledAtMs: number;
+}) => void;
+
 export function useTextToSpeech(
   selectedAccent: AccentKey | "",
   selectedGender: GenderKey,
   AZURE_KEY: string | undefined,
   AZURE_REGION: string | undefined,
   audioMode: AudioMode,
-  preGainRef: RefObject<GainNode | null>
+  preGainRef: RefObject<GainNode | null>,
+  //test componant for tts
+  onPlaybackStart?: OnPlaybackStart 
 ) {
   /** TTS playback via Web Audio */
   const playCtxRef = useRef<AudioContext | null>(null);
-  const [audioQueue, setAudioQueue] = useState<ArrayBuffer[]>([]);
+  const [audioQueue, setAudioQueue] = useState<AudioJob[]>([]);
   const [isPlaying, setIsPlaying] = useState(false);
 
   /** TTS de-dup guards */
@@ -98,12 +118,16 @@ export function useTextToSpeech(
   }
 
   /** Speak one sentence with de-dup + queue */
-  async function speakSentence(sentence: string, speaker: string) {
+  async function speakSentence(
+    sentence: string,
+    speaker: string,
+    chunkId?: string
+  ) {
     // Strip low-confidence placeholders like [ __ ]
     const cleanedSentence = sentence
-        .replace(/\[\s*__\s*\]/g, "") // remove [ __ ] with optional spaces
-        .replace(/\s+/g, " ")         // collapse extra spaces
-        .trim();
+      .replace(/\[\s*__\s*\]/g, "") // remove [ __ ] with optional spaces
+      .replace(/\s+/g, " ") // collapse extra spaces
+      .trim();
 
     // If nothing meaningful remains, skip TTS
     if (!cleanedSentence) return;
@@ -113,27 +137,48 @@ export function useTextToSpeech(
     if (!norm) return;
 
     if (norm === lastUtteranceRef.current) {
-        return;
+      return;
     }
     if (recentSetRef.current.includes(norm)) {
-        return;
+      return;
     }
+    //test component for tts start for sentence
+    const requestStart = performance.now();
 
     // Serialize TTS calls
     while (ttsBusyRef.current) await new Promise((r) => setTimeout(r, 5));
     ttsBusyRef.current = true;
     try {
-        const voice = assignVoiceForSpeaker(speaker);
-        if (!voice) return;
+      const voice = assignVoiceForSpeaker(speaker);
+      if (!voice) return;
 
-        // Send cleaned text to Azure TTS (no [ __ ] spoken)
-        const buf = await synthToBuffer(cleanedSentence, voice);
-        setAudioQueue((q) => [...q, buf]);
+      const synthStart = performance.now();
 
-        lastUtteranceRef.current = norm;
-        recentSetRef.current = [...recentSetRef.current.slice(-4), norm];
+      // Send cleaned text to Azure TTS (no [ __ ] spoken)
+      const buf = await synthToBuffer(cleanedSentence, voice);
+      const synthEnd = performance.now();
+      console.log(
+        "[TTS] synth(ms):",
+        synthEnd - synthStart,
+        "text:",
+        cleanedSentence
+      );
+
+      setAudioQueue((q) => [
+        ...q,
+        {
+          id: chunkId,
+          data: buf,
+          requestedAtMs: requestStart,
+          text: cleanedSentence,
+          speaker,
+        },
+      ]);
+
+      lastUtteranceRef.current = norm;
+      recentSetRef.current = [...recentSetRef.current.slice(-4), norm];
     } finally {
-        ttsBusyRef.current = false;
+      ttsBusyRef.current = false;
     }
   }
 
@@ -143,17 +188,20 @@ export function useTextToSpeech(
       if (isPlaying || audioQueue.length === 0) return;
 
       if (!playCtxRef.current) {
-        const AudioContextCtor = window.AudioContext ||
-          (window as Window & {
-            webkitAudioContext?: typeof AudioContext;
-          }).webkitAudioContext;
+        const AudioContextCtor =
+          window.AudioContext ||
+          (
+            window as Window & {
+              webkitAudioContext?: typeof AudioContext;
+            }
+          ).webkitAudioContext;
         if (!AudioContextCtor) {
           console.error("Web Audio API not supported in this browser");
           return;
         }
         playCtxRef.current = new AudioContextCtor();
       }
-      
+
       const ctx = playCtxRef.current;
       if (!ctx) return;
 
@@ -172,9 +220,19 @@ export function useTextToSpeech(
         preGainRef.current.gain.value = 0.0;
       }
 
+      const job = audioQueue[0];
       const wavBytes = audioQueue[0];
+
       try {
+        const decodeStart = performance.now();
         const audioBuf = await ctx.decodeAudioData(wavBytes.slice(0));
+        const decodeEnd = performance.now();
+        console.log(
+          "[TTS] decode(ms):",
+          decodeEnd - decodeStart,
+          "text:",
+          job.text
+        );
 
         const src = ctx.createBufferSource();
         src.buffer = audioBuf;
@@ -191,6 +249,25 @@ export function useTextToSpeech(
 
         const startAt = ctx.currentTime + 0.03;
         src.start(startAt);
+
+        const playbackScheduledAtMs = performance.now();
+        console.log(
+          "[TTS] request→playback scheduled(ms):",
+          playbackScheduledAtMs - job.requestedAtMs,
+          "text:",
+          job.text
+        );
+
+        // the hook for speech→speech latency
+        if (onPlaybackStart) {
+          onPlaybackStart({
+            chunkId: job.id,
+            text: job.text,
+            speaker: job.speaker,
+            requestedAtMs: job.requestedAtMs,
+            playbackScheduledAtMs,
+          });
+        }
       } catch (e) {
         console.error("Audio decode error:", e);
         // Restore microphone on error
@@ -201,7 +278,7 @@ export function useTextToSpeech(
         setIsPlaying(false);
       }
     })();
-  }, [audioQueue, isPlaying, audioMode, preGainRef]);
+  }, [audioQueue, isPlaying, audioMode, preGainRef, onPlaybackStart]);
 
   /** Handle final chunk and extract sentences */
   async function handleFinalChunk(text: string, speaker: string) {
@@ -225,7 +302,7 @@ export function useTextToSpeech(
       }
 
       for (const sent of sentences) {
-        await speakSentence(sent, speaker);
+        await speakSentence(sent, speaker, chunkId);
       }
 
       const remaining = tmp.slice(lastEnd).trim();

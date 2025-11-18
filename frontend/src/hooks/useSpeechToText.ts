@@ -32,10 +32,20 @@ export function useSpeechToText(preGainRef: RefObject<GainNode | null>  // Accep
   const workletNodeRef = useRef<AudioWorkletNode | null>(null);
   const processedFinalIds = useRef<Set<string>>(new Set());
 
+  /** STT timing */
+  const sttSessionStartRef = useRef<number | null>(null);
+  const sttFirstAudioSentRef = useRef<number | null>(null);
+  const sttFirstResultRef = useRef<number | null>(null);
+  const sttLastResultRef = useRef<number | null>(null);
+
   /** Start Recording */
   const startRecording = async (
     API_KEY: string | undefined,
-    onTranscriptReceived: (piece: string, speaker: string, resultId: string) => void | Promise<void>,
+    onTranscriptReceived: (
+      piece: string,
+      speaker: string,
+      resultId: string
+    ) => void | Promise<void>,
     onError: (error: string) => void,
     onEndOfTranscript: () => void,
     setIsLoading: (loading: boolean) => void,
@@ -52,59 +62,117 @@ export function useSpeechToText(preGainRef: RefObject<GainNode | null>  // Accep
       const client = new RealtimeClient();
       clientRef.current = client;
 
-      client.addEventListener("receiveMessage", async ({ data }: { data: SpeechmaticsMessage }) => {
-        if (data.message === "AddTranscript") {
-          const results = data.results ?? [];
-          for (const r of results) {
-            if (r.is_partial === true) {
-              continue;
+      sttSessionStartRef.current = performance.now();
+      sttFirstAudioSentRef.current = null;
+      sttFirstResultRef.current = null;
+      sttLastResultRef.current = null;
+
+      client.addEventListener(
+        "receiveMessage",
+        async ({ data }: { data: SpeechmaticsMessage }) => {
+          if (data.message === "AddTranscript") {
+            const results = data.results ?? [];
+            for (const r of results) {
+              if (r.is_partial === true) {
+                continue;
+              }
+
+              const alternative = r.alternatives?.[0];
+              if (!alternative) continue;
+
+              const CONFIDENCE_THRESHOLD = 0.7;
+
+              // Speechmatics returns word-level results (type: "word")
+              // Check confidence for each word
+              const confidence = alternative.confidence;
+              const content = alternative.content || "";
+
+              // If confidence is below threshold, replace with [ __ ]
+              let processedText = content;
+              if (
+                confidence !== undefined &&
+                confidence < CONFIDENCE_THRESHOLD
+              ) {
+                processedText = "[ __ ]";
+                console.log(
+                  `Low confidence word replaced: "${content}" (${(
+                    confidence * 100
+                  ).toFixed(0)}%) -> [ __ ]`
+                );
+              }
+
+              const piece = processedText.trim();
+              if (!piece) continue;
+
+              const speaker = alternative.speaker || "S1";
+              const resultId = `${r.start_time || 0}-${
+                r.end_time || 0
+              }-${speaker}-${piece}`;
+
+              // test component for STT timing per piece
+              const now = performance.now();
+              if (sttFirstResultRef.current == null) {
+                sttFirstResultRef.current = now;
+                if (sttSessionStartRef.current != null) {
+                  console.log(
+                    "[STT] First final result latency(ms):",
+                    sttFirstResultRef.current - sttSessionStartRef.current
+                  );
+                }
+              }
+              sttLastResultRef.current = now;
+
+              // test component for audio-based latency (optional)
+              if (r.end_time != null && sttSessionStartRef.current != null) {
+                const approxAudioLatencyMs = now - r.end_time * 1000;
+                console.log(
+                  "[STT] Approx audio-based latency for piece(ms):",
+                  approxAudioLatencyMs,
+                  "piece:",
+                  piece
+                );
+              }
+
+              if (processedFinalIds.current.has(resultId)) {
+                continue;
+              }
+              processedFinalIds.current.add(resultId);
+
+              if (processedFinalIds.current.size > 100) {
+                const arr = Array.from(processedFinalIds.current);
+                processedFinalIds.current = new Set(arr.slice(-100));
+              }
+
+              await onTranscriptReceived(piece, speaker, resultId);
             }
+          } else if (data.message === "Error") {
+            console.error("Speechmatics error:", data);
+            const errorMsg = `Speechmatics error: ${data.type} ${
+              data.reason || ""
+            }`;
+            setError(errorMsg);
+            onError(errorMsg);
+            stopRecording(setIsRecording, setError);
+          } else if (data.message === "EndOfTranscript") {
+            // test component for end of stt session
+            const end = performance.now();
+            const start = sttSessionStartRef.current ?? end;
+            const firstRes = sttFirstResultRef.current ?? end;
 
-            const alternative = r.alternatives?.[0];
-            if (!alternative) continue;
-
-            const CONFIDENCE_THRESHOLD = 0.7;
+            console.log(
+              "[STT] EndOfTranscript. Total session time(ms):",
+              end - start
+            );
+            console.log(
+              "[STT] Time from first final result to EndOfTranscript(ms):",
+              end - firstRes
+            );
+            //
             
-            // Speechmatics returns word-level results (type: "word")
-            // Check confidence for each word
-            const confidence = alternative.confidence;
-            const content = alternative.content || "";
-            
-            // If confidence is below threshold, replace with [ __ ]
-            let processedText = content;
-            if (confidence !== undefined && confidence < CONFIDENCE_THRESHOLD) {
-              processedText = "[ __ ]";
-              console.log(`Low confidence word replaced: "${content}" (${(confidence * 100).toFixed(0)}%) -> [ __ ]`);
-            }
-
-            const piece = processedText.trim();
-            if (!piece) continue;
-
-            const speaker = alternative.speaker || "S1";
-            const resultId = `${r.start_time || 0}-${r.end_time || 0}-${speaker}-${piece}`;
-
-            if (processedFinalIds.current.has(resultId)) {
-              continue;
-            }
-            processedFinalIds.current.add(resultId);
-            
-            if (processedFinalIds.current.size > 100) {
-              const arr = Array.from(processedFinalIds.current);
-              processedFinalIds.current = new Set(arr.slice(-100));
-            }
-
-            await onTranscriptReceived(piece, speaker, resultId);
+            onEndOfTranscript();
           }
-        } else if (data.message === "Error") {
-          console.error("Speechmatics error:", data);
-          const errorMsg = `Speechmatics error: ${data.type} ${data.reason || ""}`;
-          setError(errorMsg);
-          onError(errorMsg);
-          stopRecording(setIsRecording, setError);
-        } else if (data.message === "EndOfTranscript") {
-          onEndOfTranscript();
         }
-      });
+      );
 
       const jwt = await createSpeechmaticsJWT({
         type: "rt",
@@ -165,6 +233,17 @@ export function useSpeechToText(preGainRef: RefObject<GainNode | null>  // Accep
       const node = new AudioWorkletNode(ac, "audio-processor");
       workletNodeRef.current = node;
       node.port.onmessage = (e: MessageEvent<ArrayBuffer>) => {
+        // test component for start time
+        if (
+          sttFirstAudioSentRef.current == null &&
+          sttSessionStartRef.current != null
+        ) {
+          sttFirstAudioSentRef.current = performance.now();
+          console.log(
+            "[STT] First audio frame sent. Startup latency(ms):",
+            sttFirstAudioSentRef.current - sttSessionStartRef.current
+          );
+        }
         if (clientRef.current) {
           try {
             clientRef.current.sendAudio(e.data);
@@ -191,7 +270,10 @@ export function useSpeechToText(preGainRef: RefObject<GainNode | null>  // Accep
   };
 
   /** Stop Recording */
-  const stopRecording = (setIsRecording: (recording: boolean) => void, setError: (error: string) => void) => {
+  const stopRecording = (
+    setIsRecording: (recording: boolean) => void,
+    setError: (error: string) => void
+  ) => {
     try {
       if (workletNodeRef.current) {
         workletNodeRef.current.disconnect();
