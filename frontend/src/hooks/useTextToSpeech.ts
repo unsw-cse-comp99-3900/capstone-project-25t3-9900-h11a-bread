@@ -5,8 +5,6 @@ import type { AccentKey, GenderKey } from "../utils/voiceMap";
 
 type AudioMode = "headphones" | "speakers";
 
-
-
 type AudioJob = {
   id?: string; // chunkId / resultId from STT
   data: ArrayBuffer;

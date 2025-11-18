@@ -14,7 +14,7 @@ type AudioMode = "headphones" | "speakers";
 
 const Home: React.FC = () => {
 
-  //text component
+  //--------------------test--------------------//
   type TtsPerfRow = {
     chunkId?: string;
     text: string;
@@ -24,6 +24,32 @@ const Home: React.FC = () => {
 
   const [ttsPerfRows, setTtsPerfRows] = useState<TtsPerfRow[]>([]);
 
+  type SttPerfSummary = {
+    startupLatencyMs: number | null;
+    firstResultLatencyMs: number | null;
+    avgAudioLatencyMs: number | null;
+    maxAudioLatencyMs: number | null;
+    sessionDurationMs: number | null;
+  };
+
+  const [sttPerf, setSttPerf] = useState<SttPerfSummary>({
+    startupLatencyMs: null,
+    firstResultLatencyMs: null,
+    avgAudioLatencyMs: null,
+    maxAudioLatencyMs: null,
+    sessionDurationMs: null,
+  });
+
+  type TtsPerfRow = {
+    chunkId?: string;
+    text: string;
+    speaker: string;
+    requestToPlaybackMs: number;
+  };
+
+  const [ttsPerfRows, setTtsPerfRows] = useState<TtsPerfRow[]>([]);
+
+  //--------------------test--------------------//
 
   /** Auth and Transcripts */
   const { user } = useAuth();
@@ -34,7 +60,7 @@ const Home: React.FC = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [hasStarted, setHasStarted] = useState(false);
   const [error, setError] = useState("");
-  
+
   /** Audio mode for controlling mic behavior during TTS playback */
   const [audioMode, setAudioMode] = useState<AudioMode>("speakers");
 
@@ -51,13 +77,21 @@ const Home: React.FC = () => {
   const preGainRef = useRef<GainNode | null>(null);
 
   /** ENV */
-  const API_KEY = import.meta.env.VITE_SPEECHMATICS_API_KEY as string | undefined;
+  const API_KEY = import.meta.env.VITE_SPEECHMATICS_API_KEY as
+    | string
+    | undefined;
   const AZURE_REGION = import.meta.env.VITE_AZURE_REGION as string | undefined;
-  const AZURE_KEY = import.meta.env.VITE_AZURE_SPEECH_API_KEY as string | undefined;
+  const AZURE_KEY = import.meta.env.VITE_AZURE_SPEECH_API_KEY as
+    | string
+    | undefined;
 
   /** STT Hook */
-  const { startRecording: startSTT, stopRecording: stopSTT } = useSpeechToText(preGainRef);
-
+  const { startRecording: startSTT, stopRecording: stopSTT } = useSpeechToText(
+    preGainRef,
+    (metrics) => {
+      setSttPerf(metrics);
+    }
+  );
   /** TTS Hook */
   const { handleFinalChunk, flushBuffer, resetTTS } = useTextToSpeech(
     selectedAccent,
@@ -118,7 +152,7 @@ const Home: React.FC = () => {
     setLines([]);
     resetTTS();
     setTtsPerfRows([]);
-    
+
     await startSTT(
       API_KEY,
       handleTranscriptReceived,
@@ -142,7 +176,9 @@ const Home: React.FC = () => {
     if (isRecording) {
       stopRecording();
       // Save transcript to Firebase when stopping
-      const combinedTranscript = lines.map((l) => `${l.speaker}: ${l.text}`).join("\n");
+      const combinedTranscript = lines
+        .map((l) => `${l.speaker}: ${l.text}`)
+        .join("\n");
       if (combinedTranscript.trim()) {
         addTranscript(combinedTranscript);
       }
@@ -152,7 +188,9 @@ const Home: React.FC = () => {
   };
 
   const handleDownload = () => {
-    const combinedTranscript = lines.map((l) => `${l.speaker}: ${l.text}`).join("\n");
+    const combinedTranscript = lines
+      .map((l) => `${l.speaker}: ${l.text}`)
+      .join("\n");
     const blob = new Blob([combinedTranscript], {
       type: "text/plain",
     });
@@ -270,27 +308,83 @@ const Home: React.FC = () => {
           {hasStarted && (
             <div className="w-[500px] h-[580px] mt-[52px] flex flex-col overflow-hidden justify-between">
               <div>
-                {ttsSummary && (
+                <div className="px-10 pb-3">
+                  <div className="bg-white rounded-xl shadow border border-gray-200 px-4 py-3 text-sm text-gray-700">
+                    <p className="font-semibold mb-2">STT Speed (ms)</p>
+                    <div className="grid grid-cols-2 gap-y-1 gap-x-4">
+                      <span className="text-gray-500">Startup</span>
+                      <span>
+                        {sttPerf.startupLatencyMs != null
+                          ? sttPerf.startupLatencyMs.toFixed(0)
+                          : "–"}
+                      </span>
+
+                      <span className="text-gray-500">First final result</span>
+                      <span>
+                        {sttPerf.firstResultLatencyMs != null
+                          ? sttPerf.firstResultLatencyMs.toFixed(0)
+                          : "–"}
+                      </span>
+
+                      <span className="text-gray-500">Avg word latency</span>
+                      <span>
+                        {sttPerf.avgAudioLatencyMs != null
+                          ? sttPerf.avgAudioLatencyMs.toFixed(0)
+                          : "–"}
+                      </span>
+
+                      <span className="text-gray-500">Max word latency</span>
+                      <span>
+                        {sttPerf.maxAudioLatencyMs != null
+                          ? sttPerf.maxAudioLatencyMs.toFixed(0)
+                          : "–"}
+                      </span>
+
+                      <span className="text-gray-500">Session duration</span>
+                      <span>
+                        {sttPerf.sessionDurationMs != null
+                          ? sttPerf.sessionDurationMs.toFixed(0)
+                          : "–"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 🔹 TTS Speed Panel */}
+                {ttsPerfRows.length > 0 && (
                   <div className="px-10 pb-3">
                     <div className="bg-white rounded-xl shadow border border-gray-200 px-4 py-3 text-sm text-gray-700">
                       <p className="font-semibold mb-2">TTS Speed (ms)</p>
-                      <div className="grid grid-cols-2 gap-y-1 gap-x-4">
-                        <span className="text-gray-500">Utterances</span>
-                        <span>{ttsSummary.count}</span>
+                      {(() => {
+                        const total = ttsPerfRows.reduce(
+                          (acc, r) => acc + r.requestToPlaybackMs,
+                          0
+                        );
+                        const avg = total / ttsPerfRows.length;
+                        const max = Math.max(
+                          ...ttsPerfRows.map((r) => r.requestToPlaybackMs)
+                        );
+                        return (
+                          <div className="grid grid-cols-2 gap-y-1 gap-x-4">
+                            <span className="text-gray-500">Utterances</span>
+                            <span>{ttsPerfRows.length}</span>
 
-                        <span className="text-gray-500">
-                          Avg request → playback
-                        </span>
-                        <span>{ttsSummary.avg.toFixed(0)}</span>
+                            <span className="text-gray-500">
+                              Avg request → playback
+                            </span>
+                            <span>{avg.toFixed(0)}</span>
 
-                        <span className="text-gray-500">
-                          Max request → playback
-                        </span>
-                        <span>{ttsSummary.max.toFixed(0)}</span>
-                      </div>
+                            <span className="text-gray-500">
+                              Max request → playback
+                            </span>
+                            <span>{max.toFixed(0)}</span>
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
                 )}
+
                 <div className="pb-2 px-10">
                   <p className="text-gray-700 text-lg font-semibold">
                     Transcript

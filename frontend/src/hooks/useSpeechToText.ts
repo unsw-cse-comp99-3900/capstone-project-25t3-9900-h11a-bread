@@ -23,7 +23,15 @@ interface SpeechmaticsMessage {
   reason?: string;
 }
 
-export function useSpeechToText(preGainRef: RefObject<GainNode | null>  // Accept preGainRef as parameter
+export function useSpeechToText(
+  preGainRef: RefObject<GainNode | null>,
+  onSttMetricsUpdate?: (metrics: {
+    startupLatencyMs: number | null;
+    firstResultLatencyMs: number | null;
+    avgAudioLatencyMs: number | null;
+    maxAudioLatencyMs: number | null;
+    sessionDurationMs: number | null;
+  }) => void // Accept preGainRef as parameter
 ) {
   /** STT runtime */
   const clientRef = useRef<RealtimeClient | null>(null);
@@ -37,6 +45,7 @@ export function useSpeechToText(preGainRef: RefObject<GainNode | null>  // Accep
   const sttFirstAudioSentRef = useRef<number | null>(null);
   const sttFirstResultRef = useRef<number | null>(null);
   const sttLastResultRef = useRef<number | null>(null);
+  const pieceLatenciesRef = useRef<number[]>([]);
 
   /** Start Recording */
   const startRecording = async (
@@ -66,6 +75,7 @@ export function useSpeechToText(preGainRef: RefObject<GainNode | null>  // Accep
       sttFirstAudioSentRef.current = null;
       sttFirstResultRef.current = null;
       sttLastResultRef.current = null;
+      pieceLatenciesRef.current = [];
 
       client.addEventListener(
         "receiveMessage",
@@ -131,6 +141,7 @@ export function useSpeechToText(preGainRef: RefObject<GainNode | null>  // Accep
                 const speechEndMs =
                   sttFirstAudioSentRef.current + r.end_time * 1000;
                 const approxAudioLatencyMs = now - speechEndMs;
+                pieceLatenciesRef.current.push(approxAudioLatencyMs);
 
                 console.log(
                   "[STT] Approx audio-based latency for piece(ms):",
@@ -174,8 +185,30 @@ export function useSpeechToText(preGainRef: RefObject<GainNode | null>  // Accep
               "[STT] Time from first final result to EndOfTranscript(ms):",
               end - firstRes
             );
+            if (onSttMetricsUpdate) {
+              const latencies = pieceLatenciesRef.current;
+              const avg =
+                latencies.length > 0
+                  ? latencies.reduce((a, b) => a + b, 0) / latencies.length
+                  : null;
+              const max = latencies.length > 0 ? Math.max(...latencies) : null;
+
+              onSttMetricsUpdate({
+                startupLatencyMs:
+                  sttSessionStartRef.current && sttFirstAudioSentRef.current
+                    ? sttFirstAudioSentRef.current - sttSessionStartRef.current
+                    : null,
+                firstResultLatencyMs:
+                  sttSessionStartRef.current && sttFirstResultRef.current
+                    ? sttFirstResultRef.current - sttSessionStartRef.current
+                    : null,
+                avgAudioLatencyMs: avg,
+                maxAudioLatencyMs: max,
+                sessionDurationMs: end - start,
+              });
+            }
             //
-            
+
             onEndOfTranscript();
           }
         }
