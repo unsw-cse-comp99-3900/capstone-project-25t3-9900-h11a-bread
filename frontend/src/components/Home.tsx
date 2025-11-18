@@ -15,15 +15,6 @@ type AudioMode = "headphones" | "speakers";
 const Home: React.FC = () => {
 
   //--------------------test--------------------//
-  type TtsPerfRow = {
-    chunkId?: string;
-    text: string;
-    speaker: string;
-    requestToPlaybackMs: number;
-  };
-
-  const [ttsPerfRows, setTtsPerfRows] = useState<TtsPerfRow[]>([]);
-
   type SttPerfSummary = {
     startupLatencyMs: number | null;
     firstResultLatencyMs: number | null;
