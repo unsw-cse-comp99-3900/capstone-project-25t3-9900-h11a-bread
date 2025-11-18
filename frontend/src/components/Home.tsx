@@ -63,6 +63,7 @@ const Home: React.FC = () => {
   const handleTranscriptReceived = async (
     piece: string,
     speaker: string,
+    resultId: string
   ) => {
     // Append to transcript with speaker diarization
     setLines((prev) => {
@@ -85,7 +86,7 @@ const Home: React.FC = () => {
     });
 
     // Handle TTS
-    await handleFinalChunk(piece, speaker);
+    await handleFinalChunk(piece, speaker, resultId);
   };
 
   /** Start Recording */

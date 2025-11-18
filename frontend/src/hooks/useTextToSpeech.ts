@@ -221,7 +221,7 @@ export function useTextToSpeech(
       }
 
       const job = audioQueue[0];
-      const wavBytes = audioQueue[0];
+      const wavBytes = job.data;  
 
       try {
         const decodeStart = performance.now();
@@ -281,7 +281,7 @@ export function useTextToSpeech(
   }, [audioQueue, isPlaying, audioMode, preGainRef, onPlaybackStart]);
 
   /** Handle final chunk and extract sentences */
-  async function handleFinalChunk(text: string, speaker: string) {
+  async function handleFinalChunk(text: string, speaker: string, chunkId?:string) {
     bufferRef.current = (bufferRef.current + " " + text).trim();
 
     if (/[.!?]$/.test(text)) {

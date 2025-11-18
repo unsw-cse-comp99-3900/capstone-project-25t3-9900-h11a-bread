@@ -124,7 +124,9 @@ export function useSpeechToText(preGainRef: RefObject<GainNode | null>  // Accep
 
               // test component for audio-based latency (optional)
               if (r.end_time != null && sttSessionStartRef.current != null) {
-                const approxAudioLatencyMs = now - r.end_time * 1000;
+                const speechEndMs = sttFirstAudioSentRef.current + r.end_time * 1000;
+                const approxAudioLatencyMs = now - speechEndMs;
+
                 console.log(
                   "[STT] Approx audio-based latency for piece(ms):",
                   approxAudioLatencyMs,
