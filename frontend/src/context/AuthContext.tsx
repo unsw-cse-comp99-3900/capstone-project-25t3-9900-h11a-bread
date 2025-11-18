@@ -11,13 +11,14 @@ import {
 } from "firebase/auth";
 import type { User } from "firebase/auth";
 
-import { app } from "../firebase/firebase";
+import { app, facebookprovider } from "../firebase/firebase";
 
 //  Define context type
 interface AuthContextType {
   user: User | null;
   loading: boolean;
   loginWithGoogle: () => Promise<void>;
+  loginWithFacebook: () => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -26,6 +27,7 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
   loginWithGoogle: async () => {},
+  loginWithFacebook: async () => {},
   logout: async () => {},
 });
 
@@ -65,6 +67,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  const loginWithFacebook = async () => {
+    try {
+      const result = await signInWithPopup(auth, facebookprovider);
+      const currentUser = result.user;
+      setUser(currentUser);
+      console.log("User signed in:", currentUser.displayName);
+    } catch (error) {
+      console.error("Facebook Sign-In Error:", error);
+      throw error;
+    }
+  };
+
   const logout = async () => {
     try {
       await signOut(auth);
@@ -78,7 +92,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // Show loading screen until auth state is resolved
   return (
-    <AuthContext.Provider value={{ user, loading, loginWithGoogle, logout }}>
+    <AuthContext.Provider
+      value={{ user, loading, loginWithGoogle, loginWithFacebook, logout }}
+    >
       {children}
     </AuthContext.Provider>
   );
