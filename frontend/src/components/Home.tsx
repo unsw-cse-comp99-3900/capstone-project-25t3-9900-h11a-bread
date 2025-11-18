@@ -11,7 +11,20 @@ import type { AccentKey, GenderKey } from "../utils/voiceMap";
 
 type AudioMode = "headphones" | "speakers";
 
+
 const Home: React.FC = () => {
+
+  //text component
+  type TtsPerfRow = {
+    chunkId?: string;
+    text: string;
+    speaker: string;
+    requestToPlaybackMs: number;
+  };
+
+  const [ttsPerfRows, setTtsPerfRows] = useState<TtsPerfRow[]>([]);
+
+
   /** Auth and Transcripts */
   const { user } = useAuth();
   const { addTranscript } = useTranscripts(user);
@@ -46,17 +59,27 @@ const Home: React.FC = () => {
   const { startRecording: startSTT, stopRecording: stopSTT } = useSpeechToText(preGainRef);
 
   /** TTS Hook */
-  const {
-    handleFinalChunk,
-    flushBuffer,
-    resetTTS,
-  } = useTextToSpeech(
+  const { handleFinalChunk, flushBuffer, resetTTS } = useTextToSpeech(
     selectedAccent,
     selectedGender,
     AZURE_KEY,
     AZURE_REGION,
-    audioMode,      // Pass current audio mode
-    preGainRef      // Pass mic gain control reference
+    audioMode, // Pass current audio mode
+    preGainRef,
+    (info) => {
+      const requestToPlaybackMs =
+        info.playbackScheduledAtMs - info.requestedAtMs;
+
+      setTtsPerfRows((prev) => [
+        ...prev,
+        {
+          chunkId: info.chunkId,
+          text: info.text,
+          speaker: info.speaker,
+          requestToPlaybackMs,
+        },
+      ]);
+    } // Pass mic gain control reference
   );
 
   /** Handle transcript received from STT */
@@ -94,6 +117,7 @@ const Home: React.FC = () => {
     setHasStarted(true);
     setLines([]);
     resetTTS();
+    setTtsPerfRows([]);
     
     await startSTT(
       API_KEY,
@@ -140,6 +164,22 @@ const Home: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
+  //test component for tts
+  const ttsSummary = (() => {
+    if (ttsPerfRows.length === 0) return null;
+    const total = ttsPerfRows.reduce(
+      (acc, r) => acc + r.requestToPlaybackMs,
+      0
+    );
+    const avg = total / ttsPerfRows.length;
+    const max = Math.max(...ttsPerfRows.map((r) => r.requestToPlaybackMs));
+    return {
+      avg,
+      max,
+      count: ttsPerfRows.length,
+    };
+  })();
+
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center">
       <Header />
@@ -149,7 +189,7 @@ const Home: React.FC = () => {
         <AudioModeToggle
           selectedMode={audioMode}
           onModeChange={setAudioMode}
-          disabled={isRecording}  // Disable switching during recording
+          disabled={isRecording} // Disable switching during recording
         />
 
         <div className="flex justify-center items-center">
@@ -230,8 +270,31 @@ const Home: React.FC = () => {
           {hasStarted && (
             <div className="w-[500px] h-[580px] mt-[52px] flex flex-col overflow-hidden justify-between">
               <div>
+                {ttsSummary && (
+                  <div className="px-10 pb-3">
+                    <div className="bg-white rounded-xl shadow border border-gray-200 px-4 py-3 text-sm text-gray-700">
+                      <p className="font-semibold mb-2">TTS Speed (ms)</p>
+                      <div className="grid grid-cols-2 gap-y-1 gap-x-4">
+                        <span className="text-gray-500">Utterances</span>
+                        <span>{ttsSummary.count}</span>
+
+                        <span className="text-gray-500">
+                          Avg request → playback
+                        </span>
+                        <span>{ttsSummary.avg.toFixed(0)}</span>
+
+                        <span className="text-gray-500">
+                          Max request → playback
+                        </span>
+                        <span>{ttsSummary.max.toFixed(0)}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <div className="pb-2 px-10">
-                  <p className="text-gray-700 text-lg font-semibold">Transcript</p>
+                  <p className="text-gray-700 text-lg font-semibold">
+                    Transcript
+                  </p>
                 </div>
                 <div className="h-[420px] overflow-y-auto px-10 leading-relaxed">
                   {lines.length === 0 ? (
@@ -245,8 +308,9 @@ const Home: React.FC = () => {
                         S3: "text-purple-700",
                         S4: "text-orange-700",
                       };
-                      const speakerColor = speakerColors[line.speaker] || "text-gray-700";
-                      
+                      const speakerColor =
+                        speakerColors[line.speaker] || "text-gray-700";
+
                       return (
                         <div key={idx} className="mb-3">
                           <span className={`font-semibold ${speakerColor}`}>
