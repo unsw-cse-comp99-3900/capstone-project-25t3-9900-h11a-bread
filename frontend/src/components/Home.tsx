@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect} from "react";
 import Header from "./Header";
 import AccentDropdown from "./AccentDropdown";
 import AudioModeToggle from "./AudioModeToggle";
@@ -66,6 +66,14 @@ const Home: React.FC = () => {
 
   /** Microphone gain control reference - used by TTS to mute/unmute mic */
   const preGainRef = useRef<GainNode | null>(null);
+
+  //new
+  const transcriptRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!transcriptRef.current) return;
+    const el = transcriptRef.current;
+    el.scrollTop = el.scrollHeight;
+  }, [lines]);
 
   /** ENV */
   const API_KEY = import.meta.env.VITE_SPEECHMATICS_API_KEY as
@@ -299,7 +307,7 @@ const Home: React.FC = () => {
           {hasStarted && (
             <div className="w-[500px] h-[580px] mt-[52px] flex flex-col overflow-hidden justify-between">
               <div>
-                <div className="px-10 pb-3">
+                {/* <div className="px-10 pb-3">
                   <div className="bg-white rounded-xl shadow border border-gray-200 px-4 py-3 text-sm text-gray-700">
                     <p className="font-semibold mb-2">STT Speed (ms)</p>
                     <div className="grid grid-cols-2 gap-y-1 gap-x-4">
@@ -374,14 +382,17 @@ const Home: React.FC = () => {
                       })()}
                     </div>
                   </div>
-                )}
+                )} */}
 
                 <div className="pb-2 px-10">
                   <p className="text-gray-700 text-lg font-semibold">
                     Transcript
                   </p>
                 </div>
-                <div className="h-[420px] overflow-y-auto px-10 leading-relaxed">
+                <div
+                  ref={transcriptRef}
+                  className="h-[420px] overflow-y-auto px-10 leading-relaxed"
+                >
                   {lines.length === 0 ? (
                     <p className="text-gray-500">…listening</p>
                   ) : (
