@@ -347,10 +347,10 @@ const Home: React.FC = () => {
                       </span>
                     </div>
                   </div>
-                </div>
+                </div> */}
 
                 {/* 🔹 TTS Speed Panel */}
-                {ttsPerfRows.length > 0 && (
+                {/* {ttsPerfRows.length > 0 && (
                   <div className="px-10 pb-3">
                     <div className="bg-white rounded-xl shadow border border-gray-200 px-4 py-3 text-sm text-gray-700">
                       <p className="font-semibold mb-2">TTS Speed (ms)</p>
