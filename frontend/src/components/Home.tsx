@@ -72,6 +72,13 @@ const Home: React.FC = () => {
 
   /** Handle transcript received from STT */
   const handleTranscriptReceived = async (piece: string, speaker: string) => {
+    // Detect speaker change and flush previous speaker's buffer
+    const prevSpeaker = lines.length > 0 ? lines[lines.length - 1].speaker : null;
+    if (prevSpeaker && prevSpeaker !== speaker) {
+      // Speaker transition detected, flush previous speaker's incomplete buffer
+      await flushBuffer(prevSpeaker);
+    }
+
     // Append to transcript with speaker diarization
     setLines((prev) => {
       if (prev.length) {
