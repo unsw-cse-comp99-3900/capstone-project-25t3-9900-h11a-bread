@@ -283,7 +283,7 @@ const NotesPage: React.FC = () => {
       <main className="pt-32 flex justify-center px-8 py-6 items-center">
         <div className="w-full max-w-3xl">
           <h2 className="text-lg font-medium text-gray-700 mb-5 h-8 flex items-center justify-between">
-            <span>Welcome, {userName}</span>
+            <span className="hidden sm:block">Welcome, {userName}</span>
 
             <div className="flex items-center gap-3">
               {/* Sort Toggle */}
