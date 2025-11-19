@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect} from "react";
+import { useState, useRef, useEffect } from "react";
 import Header from "./Header";
 import AccentDropdown from "./AccentDropdown";
 import AudioModeToggle from "./AudioModeToggle";
@@ -23,7 +23,7 @@ const Home: React.FC = () => {
   const [hasStarted, setHasStarted] = useState(false);
   const [error, setError] = useState("");
 
-  //Audio mode for controlling mic behavior during TTS playback 
+  //Audio mode for controlling mic behavior during TTS playback
   const [audioMode, setAudioMode] = useState<AudioMode>("speakers");
 
   //handle transcript
@@ -74,7 +74,8 @@ const Home: React.FC = () => {
   /** Handle transcript received from STT */
   const handleTranscriptReceived = async (piece: string, speaker: string) => {
     // Detect speaker change and flush previous speaker's buffer
-    const prevSpeaker = lines.length > 0 ? lines[lines.length - 1].speaker : null;
+    const prevSpeaker =
+      lines.length > 0 ? lines[lines.length - 1].speaker : null;
     if (prevSpeaker && prevSpeaker !== speaker) {
       // Speaker transition detected, flush previous speaker's incomplete buffer
       await flushBuffer(prevSpeaker);

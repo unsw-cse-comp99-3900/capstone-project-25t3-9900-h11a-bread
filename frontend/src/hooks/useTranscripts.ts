@@ -52,11 +52,26 @@ export function useTranscripts(user: User | null) {
 
       if (docSnap.exists()) {
         const data = docSnap.data();
+        // Convert recordedAt from ISO string or Date to Date object
+        let recordedAt: Date;
+        if (!data.recordedAt) {
+          recordedAt = new Date();
+        } else if (typeof data.recordedAt === 'string') {
+          recordedAt = new Date(data.recordedAt);
+        } else if (data.recordedAt instanceof Date) {
+          recordedAt = data.recordedAt;
+        } else if (data.recordedAt.toDate && typeof data.recordedAt.toDate === 'function') {
+          // Firestore Timestamp
+          recordedAt = data.recordedAt.toDate();
+        } else {
+          recordedAt = new Date(data.recordedAt);
+        }
+        
         return {
           id: docSnap.id,
-          notesContent: data.notesContent || "",
           notesName: data.notesName || "Untitled",
-          recordedAt: data.recordedAt ? new Date(data.recordedAt) : new Date(),
+          notesContent: data.notesContent || "",
+          recordedAt,
         };
       } else {
         console.warn("Transcript not found:", transcriptId);

@@ -1,9 +1,9 @@
 import Button from "./Button";
-import { useState } from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 
-function Header() {
+function Header(): React.JSX.Element {
   const { user, logout, loading } = useAuth();
 
   const userName = user?.displayName;

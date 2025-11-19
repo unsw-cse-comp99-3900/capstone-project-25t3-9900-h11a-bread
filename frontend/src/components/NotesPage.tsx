@@ -1,6 +1,14 @@
 import React, { useEffect, useState } from "react";
 import { format } from "date-fns";
-import { Download, ArrowLeft, Edit3, X, Save, Trash2, Sparkles } from "lucide-react";
+import {
+  Download,
+  ArrowLeft,
+  Edit3,
+  X,
+  Save,
+  Trash2,
+  Sparkles,
+} from "lucide-react";
 import Header from "./Header";
 import { useAuth } from "../hooks/useAuth";
 import { useNavigate } from "react-router-dom";
@@ -100,7 +108,8 @@ const NoteDetail: React.FC<NoteDetailProps> = ({
       setSummary(result);
       setShowSummary(true);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Failed to generate summary";
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to generate summary";
       setSummaryError(errorMessage);
       console.error("Summarization error:", error);
     } finally {
@@ -149,7 +158,11 @@ const NoteDetail: React.FC<NoteDetailProps> = ({
                       className="hover:scale-110 transition text-purple-600 disabled:opacity-50"
                       title="AI Summary"
                     >
-                      <Sparkles className={`w-5 h-5 ${isSummarizing ? 'animate-pulse' : ''}`} />
+                      <Sparkles
+                        className={`w-5 h-5 ${
+                          isSummarizing ? "animate-pulse" : ""
+                        }`}
+                      />
                     </button>
 
                     <button
@@ -262,7 +275,7 @@ const NoteDetail: React.FC<NoteDetailProps> = ({
               <div
                 className={`text-gray-800 text-[15px] leading-relaxed whitespace-pre-line 
                 max-h-[70vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 my-5 ${
-                  showSummary ? 'h-[280px]' : 'h-[415px]'
+                  showSummary ? "h-[280px]" : "h-[415px]"
                 }`}
               >
                 {note.notesContent}
@@ -294,36 +307,41 @@ const NotesPage: React.FC = () => {
     if (user) fetchTranscripts();
   }, [user]);
 
-  const itemsPerPage = 5;
+  const itemsPerPage = 6;
   const [currentPage, setCurrentPage] = useState(1);
+  const [reverseOrder, setReverseOrder] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
 
-  const sortedTranscripts = [...transcripts].sort(
-    (a, b) =>
-      new Date(b.recordedAt).getTime() - new Date(a.recordedAt).getTime()
+  // 1. Filter by search
+  const filteredTranscripts = transcripts.filter((t) =>
+    t.notesName.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const totalPages = Math.ceil(sortedTranscripts.length / itemsPerPage);
+  // 2. Sort by date, then apply direction
+  const sortedFilteredTranscripts = [...filteredTranscripts].sort((a, b) => {
+    const aTime = new Date(a.recordedAt).getTime();
+    const bTime = new Date(b.recordedAt).getTime();
+    return reverseOrder ? aTime - bTime : bTime - aTime; // false = Newest → Oldest
+  });
+
+  // 3. Pagination based on filtered+sorted list
+  const totalPages =
+    Math.ceil(sortedFilteredTranscripts.length / itemsPerPage) || 1;
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedNotes = sortedTranscripts.slice(
+  const paginatedNotes = sortedFilteredTranscripts.slice(
     startIndex,
     startIndex + itemsPerPage
   );
 
-  const groupedNotes = groupNotesByDate(
-    paginatedNotes.map((n) => ({
-      ...n,
-      createdAt: n.recordedAt,
-    }))
-  );
+  // 4. Group notes by date
+  const groupedNotes = groupNotesByDate(paginatedNotes);
 
   const [selectedNote, setSelectedNote] = useState<Note | null>(null);
 
   const handleDetail = async (id: string) => {
     const fullNote = await fetchTranscriptById(id);
-    if (fullNote && fullNote.notesContent !== undefined && fullNote.notesName !== undefined && fullNote.recordedAt) {
-      setSelectedNote(fullNote as Note);
-    } else {
-      setSelectedNote(null);
+    if (fullNote) {
+      setSelectedNote(fullNote);
     }
   };
 
@@ -349,8 +367,33 @@ const NotesPage: React.FC = () => {
       <Header />
       <main className="pt-32 flex justify-center px-8 py-6 items-center">
         <div className="w-full max-w-3xl">
-          <h2 className="text-lg font-medium text-gray-700 mb-5 h-8">
-            Welcome, {userName}
+          <h2 className="text-lg font-medium text-gray-700 mb-5 h-8 flex items-center justify-between">
+            <span className="hidden sm:block">Welcome, {userName}</span>
+
+            <div className="flex items-center gap-3">
+              {/* Sort Toggle */}
+              <button
+                onClick={() => {
+                  setReverseOrder((prev) => !prev);
+                  setCurrentPage(1);
+                }}
+                className="px-3 py-1 text-xs rounded-lg border border-gray-300 bg-white hover:bg-gray-100 shadow-sm transition"
+              >
+                {reverseOrder ? "Oldest → Newest" : "Newest → Oldest"}
+              </button>
+
+              {/* Search Input */}
+              <input
+                type="text"
+                placeholder="Search notes..."
+                value={searchTerm}
+                onChange={(e) => {
+                  setCurrentPage(1);
+                  setSearchTerm(e.target.value);
+                }}
+                className="px-3 py-1 text-xs w-36 border border-gray-300 bg-white rounded-lg shadow-sm focus:ring-2 focus:ring-blue-400 focus:outline-none transition"
+              />
+            </div>
           </h2>
 
           <div className="bg-white rounded-2xl shadow-sm p-8 h-[580px] flex flex-col justify-between">
@@ -363,7 +406,7 @@ const NotesPage: React.FC = () => {
                 No transcripts found.
               </div>
             ) : (
-              <div className="space-y-6">
+              <div className="h-full flex flex-col gap-2">
                 {Object.entries(groupedNotes).map(([date, notes]) => (
                   <div key={date}>
                     <h3 className="text-gray-600 font-semibold mb-2">{date}</h3>
@@ -405,7 +448,7 @@ const NotesPage: React.FC = () => {
 
             {/* Pagination */}
             {totalPages != 0 && (
-              <div className="flex justify-center items-center gap-4 mt-8">
+              <div className="flex justify-center items-center gap-4">
                 <button
                   className="px-3 py-1 rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300 disabled:opacity-40 text-xs"
                   disabled={currentPage === 1}
