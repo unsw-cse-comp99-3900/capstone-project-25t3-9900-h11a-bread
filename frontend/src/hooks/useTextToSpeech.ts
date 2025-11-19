@@ -2,6 +2,7 @@ import { useRef, useState, useEffect, type RefObject } from "react";
 import * as sdk from "microsoft-cognitiveservices-speech-sdk";
 import { VOICE_MAP } from "../utils/voiceMap";
 import type { AccentKey, GenderKey } from "../utils/voiceMap";
+import { formatPunctuationSpacing } from "../utils/textFormatter";
 
 type AudioMode = "headphones" | "speakers";
 
@@ -99,11 +100,10 @@ export function useTextToSpeech(
 
   /** Speak one sentence with de-dup + queue */
   async function speakSentence(sentence: string, speaker: string) {
-    // Strip low-confidence placeholders like [ __ ]
-    const cleanedSentence = sentence
-        .replace(/\[\s*__\s*\]/g, "") // remove [ __ ] with optional spaces
-        .replace(/\s+/g, " ")         // collapse extra spaces
-        .trim();
+    // Strip low-confidence placeholders like [ __ ] and format punctuation spacing
+    const cleanedSentence = formatPunctuationSpacing(
+      sentence.replace(/\[\s*__\s*\]/g, "") // remove [ __ ] with optional spaces
+    );
 
     // If nothing meaningful remains, skip TTS
     if (!cleanedSentence) return;
