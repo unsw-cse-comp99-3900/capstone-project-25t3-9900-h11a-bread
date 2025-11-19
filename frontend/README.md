@@ -1,11 +1,14 @@
 # SystemX Frontend
 
-React application built with Vite and TypeScript, fully containerized with Docker.
+React application built with Vite and TypeScript for real-time accent translation, fully containerized with Docker.
 
 ## Features
 
 - **Vite** for fast development and building
 - **TypeScript** for type safety
+- **Real-time STT/TTS** via Speechmatics and Azure Speech SDK
+- **Speaker diarization** with automatic voice assignment
+- **AI-powered summaries** using DeepSeek V3
 - **Docker** support for development and production
 - **Hot Module Replacement** in development
 - **Nginx** for production serving
@@ -68,6 +71,31 @@ docker run -p 8080:80 systemx:prod
 ```
 
 ## Configuration
+
+### Environment Variables
+
+Copy `.env.example` to `.env` and configure:
+
+```bash
+# Firebase (authentication and transcript storage)
+VITE_FIREBASE_API_KEY=your_api_key
+VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=your_project_id
+VITE_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
+VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+VITE_FIREBASE_APP_ID=your_app_id
+VITE_FIREBASE_MEASUREMENT_ID=your_measurement_id
+
+# Speechmatics (speech-to-text)
+VITE_SPEECHMATICS_API_KEY=your_speechmatics_key
+
+# Azure Cognitive Services (text-to-speech)
+VITE_AZURE_SPEECH_API_KEY=your_azure_key
+VITE_AZURE_REGION=eastus
+
+# DeepSeek AI (optional, for transcript summaries)
+VITE_DEEPSEEK_API_KEY=your_deepseek_key
+```
 
 ### Vite Configuration
 

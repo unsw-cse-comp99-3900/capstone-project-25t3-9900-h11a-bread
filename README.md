@@ -16,11 +16,13 @@ The application is entirely client-side, with the React frontend communicating d
 - **Real-time transcription** - See what you're saying as you speak
 - **Speaker diarization** - Automatically identifies up to 5 different speakers (S1, S2, S3, S4, S5)
 - **Multi-speaker voice assignment** - Each speaker gets a unique voice from the selected accent pool
-- **Accent translation** - Convert to American, British, Australian, or Indian accents
+- **Accent translation** - Convert to American (default), British, Australian, or Indian accents
 - **Voice options** - Choose male or female voices (5 voice variants per accent/gender)
 - **Transcript management** - Save, edit, rename, and delete transcripts in Firebase
 - **Enhanced accuracy** - Uses Speechmatics "enhanced" mode with 3-second max delay for better context
-- **AI Summary** ✨ **NEW** - Generate intelligent summaries of your transcripts using DeepSeek V3 via SiliconFlow API
+- **Confidence-based filtering** - Replaces low-confidence words (< 70%) with placeholders to prevent hallucinations
+- **Audio mode toggle** - Switch between Headphones mode (mic stays active) and Speakers mode (mic mutes during playback)
+- **AI Summary** - Generate intelligent summaries of your transcripts using DeepSeek V3 via SiliconFlow API
 
 ## Tech Stack
 
@@ -74,6 +76,7 @@ The application is entirely client-side, with the React frontend communicating d
    VITE_FIREBASE_APP_ID=your_app_id
    VITE_FIREBASE_MEASUREMENT_ID=your_measurement_id
    VITE_DEEPSEEK_API_KEY=your_deepseek_key  # Optional, for AI Summary feature
+   VITE_AZURE_REGION=eastus  # Azure region for TTS service
    ```
 
 4. **Run the development server**
@@ -109,10 +112,11 @@ Runs on `http://localhost:8080` served by Nginx.
 frontend/
 ├── src/
 │   ├── components/
-│   │   ├── Home.tsx              # Main app logic (707 lines)
+│   │   ├── Home.tsx              # Main app orchestration
 │   │   ├── Login.tsx             # Login page
-│   │   ├── NotesPage.tsx         # Saved transcripts viewer
+│   │   ├── NotesPage.tsx         # Saved transcripts viewer with AI summary
 │   │   ├── AccentDropdown.tsx    # Accent/gender selector
+│   │   ├── AudioModeToggle.tsx   # Headphones/Speakers mode toggle
 │   │   ├── Button.tsx            # Reusable button
 │   │   └── Header.tsx            # App header
 │   ├── context/
@@ -121,7 +125,12 @@ frontend/
 │   │   └── firebase.ts           # Firebase config
 │   ├── hooks/
 │   │   ├── useAuth.ts            # Auth hook
-│   │   └── useTranscripts.ts     # Firestore operations
+│   │   ├── useTranscripts.ts     # Firestore operations
+│   │   ├── useSpeechToText.ts    # Speechmatics STT integration
+│   │   └── useTextToSpeech.ts    # Azure TTS integration
+│   ├── utils/
+│   │   ├── auth.ts               # Auth helpers
+│   │   └── deepseek.ts           # AI summary integration
 │   └── App.tsx                   # Main app component
 ├── public/
 │   └── audio-processor.js        # Audio worklet for processing
@@ -147,9 +156,13 @@ frontend/
 
 **Speaker Diarization**: Speechmatics identifies up to 5 speakers and returns labels (S1, S2, S3, S4, S5). We merge consecutive utterances from the same speaker and color-code them (S1=blue, S2=green, S3=purple, S4=orange, S5=pink).
 
-**Echo Prevention**: Browser's built-in echo cancellation is disabled to avoid interference with our real-time processing.
+**Confidence-Based Filtering**: Words with Speechmatics confidence scores below 70% are automatically replaced with `[ __ ]` placeholders. This prevents low-confidence "hallucinated" words from being synthesized and played back, improving overall accuracy.
 
-Soon-to-be implemented: Headphones mode (no mute when AI voice is speaking) and Speaker mode (mutes when AI voice is speaking)
+**Audio Mode Control**: Users can choose between two audio modes:
+- **Headphones Mode**: Microphone stays active during AI speech playback (ideal when using headphones to prevent echo naturally)
+- **Speakers Mode** (default): Microphone automatically mutes during AI speech playback to prevent acoustic feedback
+
+**Echo Prevention**: Browser's built-in echo cancellation is disabled to avoid interference with our real-time processing. The Audio Mode toggle provides manual control over microphone behavior during playback.
 
 **De-duplication**: We track processed message IDs from Speechmatics and normalize text to prevent speaking the same sentence twice.
 
@@ -159,12 +172,17 @@ Soon-to-be implemented: Headphones mode (no mute when AI voice is speaking) and 
 
 The AI Summary feature uses DeepSeek V3 via SiliconFlow API to generate concise summaries of your transcripts. Simply open any saved transcript and click the purple sparkles (✨) icon to generate a paragraph summary.
 
+**Implementation Details:**
+- Automatically truncates transcripts to 12,000 characters to stay within API limits
+- Uses adaptive summary length based on transcript size (wordCount/5, minimum 20 words)
+- Prevents markdown formatting and bullet points for clean paragraph output
+
 **Setup:**
-1. Get a free API key from [SiliconFlow](https://cloud.siliconflow.cn/) 
+1. Get a free API key from [SiliconFlow](https://cloud.siliconflow.cn/)
 2. Add `VITE_DEEPSEEK_API_KEY` to your `.env` file
 3. Restart the development server
 
-**Cost:** Very affordable 
+**Cost:** Very affordable with SiliconFlow's pricing 
 
 ## Available Scripts
 
