@@ -1,0 +1,25 @@
+version: 2
+updates:
+  # App/library deps
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"     # daily | weekly | monthly
+      day: "thursday"
+      time: "03:00"
+    open-pull-requests-limit: 5
+    labels: ["deps"]
+    reviewers: ["your-github-username"]   # or team-slug if org
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    ignore:
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]  # ignore TS major bumps for school project
+
+  # GitHub Actions runner updates
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels: ["deps", "ci"]

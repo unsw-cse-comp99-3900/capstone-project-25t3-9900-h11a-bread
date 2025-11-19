@@ -1,6 +1,8 @@
-import React, { useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { FcGoogle } from "react-icons/fc";
+import { signInWithPopup } from "firebase/auth";
+import { auth, provider, facebookprovider } from "../firebase/firebase";
 import loginPicture from "../assets/login-picture.png";
 import { useAuth } from "../hooks/useAuth";
 
@@ -20,8 +22,8 @@ const Login = (): React.JSX.Element => {
   };
 
   return (
-    <div className="flex flex-col md:flex-row min-h-screen">
-      <div className="flex flex-1 items-center justify-center p-4 md:p-8 bg-gray-50">
+    <div className="flex flex-col-reverse md:flex-row min-h-screen">
+      <div className="flex flex-1 items-center justify-center p-2 px-4 md:p-8 bg-gray-50">
         <div className="w-full max-w-md p-6 md:p-12 bg-[#F7F7F7] rounded-3xl shadow-2xl my-4 md:my-0">
           <h1 className="text-3xl md:text-5xl font-bold text-gray-800 mb-6 md:mb-10 text-left">
             Login
@@ -37,7 +39,7 @@ const Login = (): React.JSX.Element => {
           </button>
 
           <button
-            className="w-full p-4 mb-4 border border-blue-600 rounded-xl bg-blue-600 text-white font-medium flex items-center gap-4"
+            className="w-full p-4 mb-4 border  border-gray-300  rounded-xl  bg-white text-gray-700 font-medium flex items-center gap-4"
             onClick={loginWithFacebook}
             disabled={loading}
           >

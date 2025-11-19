@@ -1,10 +1,19 @@
 import React, { useEffect, useState } from "react";
 import { format } from "date-fns";
-import { Download, ArrowLeft, Edit3, X, Save, Trash2 } from "lucide-react";
+import {
+  Download,
+  ArrowLeft,
+  Edit3,
+  X,
+  Save,
+  Trash2,
+  Sparkles,
+} from "lucide-react";
 import Header from "./Header";
 import { useAuth } from "../hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { useTranscripts } from "../hooks/useTranscripts";
+import { summarizeText } from "../utils/deepseek";
 
 interface Note {
   id: string;
@@ -67,6 +76,10 @@ const NoteDetail: React.FC<NoteDetailProps> = ({
   const [editedContent, setEditedContent] = useState(note.notesContent || "");
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isSummarizing, setIsSummarizing] = useState(false);
+  const [summary, setSummary] = useState<string>("");
+  const [showSummary, setShowSummary] = useState(false);
+  const [summaryError, setSummaryError] = useState<string>("");
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -85,6 +98,23 @@ const NoteDetail: React.FC<NoteDetailProps> = ({
     await deleteTranscript(note.id);
     setIsDeleting(false);
     onBack();
+  };
+
+  const handleSummarize = async () => {
+    setIsSummarizing(true);
+    setSummaryError("");
+    try {
+      const result = await summarizeText(note.notesContent);
+      setSummary(result);
+      setShowSummary(true);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to generate summary";
+      setSummaryError(errorMessage);
+      console.error("Summarization error:", error);
+    } finally {
+      setIsSummarizing(false);
+    }
   };
 
   return (
@@ -122,6 +152,19 @@ const NoteDetail: React.FC<NoteDetailProps> = ({
               <div className="flex items-center gap-3">
                 {!isEditing && (
                   <>
+                    <button
+                      onClick={handleSummarize}
+                      disabled={isSummarizing}
+                      className="hover:scale-110 transition text-purple-600 disabled:opacity-50"
+                      title="AI Summary"
+                    >
+                      <Sparkles
+                        className={`w-5 h-5 ${
+                          isSummarizing ? "animate-pulse" : ""
+                        }`}
+                      />
+                    </button>
+
                     <button
                       onClick={() => downloadTranscript(note)}
                       className="hover:scale-110 transition"
@@ -185,6 +228,42 @@ const NoteDetail: React.FC<NoteDetailProps> = ({
                 : ""}
             </p>
 
+            {/* Summary Section */}
+            {showSummary && summary && (
+              <div className="mb-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-semibold text-purple-900 flex items-center gap-2">
+                    <Sparkles className="w-4 h-4" />
+                    AI Summary
+                  </h3>
+                  <button
+                    onClick={() => setShowSummary(false)}
+                    className="text-purple-600 hover:text-purple-800"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">
+                  {summary}
+                </div>
+              </div>
+            )}
+
+            {/* Summary Error */}
+            {summaryError && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-red-700">{summaryError}</p>
+                  <button
+                    onClick={() => setSummaryError("")}
+                    className="text-red-600 hover:text-red-800"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Content area */}
             {isEditing ? (
               <textarea
@@ -194,8 +273,10 @@ const NoteDetail: React.FC<NoteDetailProps> = ({
               />
             ) : (
               <div
-                className="text-gray-800 text-[15px] leading-relaxed whitespace-pre-line 
-                max-h-[70vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 h-[415px] my-5"
+                className={`text-gray-800 text-[15px] leading-relaxed whitespace-pre-line 
+                max-h-[70vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 my-5 ${
+                  showSummary ? "h-[280px]" : "h-[415px]"
+                }`}
               >
                 {note.notesContent}
               </div>
@@ -226,30 +307,34 @@ const NotesPage: React.FC = () => {
     if (user) fetchTranscripts();
   }, [user]);
 
-  const itemsPerPage = 5;
+  const itemsPerPage = 6;
   const [currentPage, setCurrentPage] = useState(1);
-  const totalPages = Math.ceil(transcripts.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
   const [reverseOrder, setReverseOrder] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
 
-  let printTranscript = transcripts.filter((t) =>
+  // 1. Filter by search
+  const filteredTranscripts = transcripts.filter((t) =>
     t.notesName.toLowerCase().includes(searchTerm.toLowerCase())
   );
-  if (reverseOrder) {
-    printTranscript = [...printTranscript].reverse();
-  }
-  const paginatedNotes = printTranscript.slice(
+
+  // 2. Sort by date, then apply direction
+  const sortedFilteredTranscripts = [...filteredTranscripts].sort((a, b) => {
+    const aTime = new Date(a.recordedAt).getTime();
+    const bTime = new Date(b.recordedAt).getTime();
+    return reverseOrder ? aTime - bTime : bTime - aTime; // false = Newest → Oldest
+  });
+
+  // 3. Pagination based on filtered+sorted list
+  const totalPages =
+    Math.ceil(sortedFilteredTranscripts.length / itemsPerPage) || 1;
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedNotes = sortedFilteredTranscripts.slice(
     startIndex,
     startIndex + itemsPerPage
   );
 
-  const groupedNotes = groupNotesByDate(
-    paginatedNotes.map((n) => ({
-      ...n,
-      createdAt: n.recordedAt,
-    }))
-  );
+  // 4. Group notes by date
+  const groupedNotes = groupNotesByDate(paginatedNotes);
 
   const [selectedNote, setSelectedNote] = useState<Note | null>(null);
 
@@ -288,7 +373,10 @@ const NotesPage: React.FC = () => {
             <div className="flex items-center gap-3">
               {/* Sort Toggle */}
               <button
-                onClick={() => setReverseOrder((prev) => !prev)}
+                onClick={() => {
+                  setReverseOrder((prev) => !prev);
+                  setCurrentPage(1);
+                }}
                 className="px-3 py-1 text-xs rounded-lg border border-gray-300 bg-white hover:bg-gray-100 shadow-sm transition"
               >
                 {reverseOrder ? "Oldest → Newest" : "Newest → Oldest"}
@@ -318,7 +406,7 @@ const NotesPage: React.FC = () => {
                 No transcripts found.
               </div>
             ) : (
-              <div className="space-y-6">
+              <div className="h-full flex flex-col gap-2">
                 {Object.entries(groupedNotes).map(([date, notes]) => (
                   <div key={date}>
                     <h3 className="text-gray-600 font-semibold mb-2">{date}</h3>
@@ -332,11 +420,13 @@ const NotesPage: React.FC = () => {
                           <div className="flex flex-col">
                             <div className="text-gray-900 font-medium text-sm">
                               {note.notesName}{" "}
-                              <span className="text-gray-500 text-xs ml-1">
+                              {/* <span className="text-gray-500 text-xs ml-1">
                                 {formatTime(new Date(note.recordedAt))}
-                              </span>
+                              </span> */}
                             </div>
-                            <div className="text-gray-400 text-xs">11:11</div>
+                            <div className="text-gray-400 text-xs">
+                              {formatTime(new Date(note.recordedAt))}
+                            </div>
                           </div>
                           <button
                             onClick={(e) => {
@@ -358,7 +448,7 @@ const NotesPage: React.FC = () => {
 
             {/* Pagination */}
             {totalPages != 0 && (
-              <div className="flex justify-center items-center gap-4 mt-8">
+              <div className="flex justify-center items-center gap-4">
                 <button
                   className="px-3 py-1 rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300 disabled:opacity-40 text-xs"
                   disabled={currentPage === 1}

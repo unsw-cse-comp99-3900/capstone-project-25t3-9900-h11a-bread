@@ -1,208 +1,221 @@
-# SystemX - Real-time Fact Accent Translation Application
+# SystemX - Real-Time Accent Translation
 
-SystemX is a full-stack fast accent translation application with a React frontend and FastAPI backend, fully containerized with Docker. The application provides real-time accent translation capabilities through WebSocket connections and HTTP endpoints.
+A real-time web application that transcribes your speech and plays it back in different English accents. Built for our capstone project, SystemX uses speaker diarization to identify multiple speakers and lets you choose between American, British, Australian, and Indian accents.
+
+## System Architecture
+
+![System Architecture](system-architecture.png)
+
+The application is entirely client-side, with the React frontend communicating directly with three cloud services:
+- **Firebase** for authentication and storing transcripts
+- **Speechmatics** for real-time speech-to-text with speaker identification
+- **Azure TTS** for synthesizing speech in different accents
+
+## Features
+
+- **Real-time transcription** - See what you're saying as you speak
+- **Speaker diarization** - Automatically identifies up to 5 different speakers (S1, S2, S3, S4, S5)
+- **Multi-speaker voice assignment** - Each speaker gets a unique voice from the selected accent pool
+- **Accent translation** - Convert to American (default), British, Australian, or Indian accents
+- **Voice options** - Choose male or female voices (5 voice variants per accent/gender)
+- **Transcript management** - Save, edit, rename, and delete transcripts in Firebase
+- **Enhanced accuracy** - Uses Speechmatics "enhanced" mode with 3-second max delay for better context
+- **Confidence-based filtering** - Replaces low-confidence words (< 70%) with placeholders to prevent hallucinations
+- **Audio mode toggle** - Switch between Headphones mode (mic stays active) and Speakers mode (mic mutes during playback)
+- **AI Summary** - Generate intelligent summaries of your transcripts using DeepSeek V3 via SiliconFlow API
+
+## Tech Stack
+
+- **Frontend**: React 19.1.1 + TypeScript 5.8.3 + Vite 7.1.7
+- **Styling**: Tailwind CSS 4.1.14
+- **Speech-to-Text**: Speechmatics Real-time Client 7.0.2
+- **Text-to-Speech**: Azure Speech SDK 1.46.0
+- **Backend Services**: Firebase 12.3.0 (Auth + Firestore)
+- **Routing**: React Router 7.9.3
+
+## Quick Start
+
+### Prerequisites
+
+- Node.js 22+
+- A Speechmatics API key
+- An Azure Cognitive Services API key
+- Firebase project credentials
+
+### Setup
+
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd capstone-project-25t3-9900-h11a-bread
+   ```
+
+2. **Install dependencies**
+   ```bash
+   cd frontend
+   npm install
+   ```
+
+3. **Configure environment variables**
+
+   Copy `.env.example` to `.env` and fill in your API keys:
+   ```bash
+   cp .env.example .env
+   ```
+
+   Required variables:
+   ```
+   VITE_SPEECHMATICS_API_KEY=your_speechmatics_key
+   VITE_AZURE_SPEECH_API_KEY=your_azure_key
+   VITE_AZURE_REGION=eastus
+   VITE_FIREBASE_API_KEY=your_firebase_key
+   VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+   VITE_FIREBASE_PROJECT_ID=your_project_id
+   VITE_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
+   VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+   VITE_FIREBASE_APP_ID=your_app_id
+   VITE_FIREBASE_MEASUREMENT_ID=your_measurement_id
+   VITE_DEEPSEEK_API_KEY=your_deepseek_key  # Optional, for AI Summary feature
+   VITE_AZURE_REGION=eastus  # Azure region for TTS service
+   ```
+
+4. **Run the development server**
+   ```bash
+   npm run dev
+   ```
+
+   The app will be available at `http://localhost:3000`
+
+## Docker Setup
+
+### Development
+
+```bash
+cd frontend
+docker-compose up systemx-dev
+```
+
+Runs on `http://localhost:3000` with hot reload enabled.
+
+### Production
+
+```bash
+cd frontend
+docker-compose --profile production up systemx-prod
+```
+
+Runs on `http://localhost:8080` served by Nginx.
 
 ## Project Structure
 
 ```
-systemx/
-├── frontend/                    # React + TypeScript + Vite frontend
-│   ├── src/                    # React components and logic
-│   ├── public/                 # Static assets
-│   ├── Dockerfile              # Production Docker image
-│   ├── Dockerfile.dev          # Development Docker image
-│   ├── docker-compose.yml      # Frontend Docker orchestration
-│   └── package.json            # Node.js dependencies
-├── backend/                     # FastAPI backend for audio processing
-│   ├── VAD/                    # Voice Activity Detection module
-│   │   ├── app.py             # Main FastAPI application
-│   │   ├── client.py          # Client utilities
-│   │   └── getTestData.py     # Test data utilities
-│   ├── Dockerfile              # Production Docker image
-│   ├── Dockerfile.dev          # Development Docker image
-│   ├── docker-compose.yml      # Backend Docker orchestration
-│   └── requirements.txt        # Python dependencies
-└── README.md                    # This file
+frontend/
+├── src/
+│   ├── components/
+│   │   ├── Home.tsx              # Main app orchestration
+│   │   ├── Login.tsx             # Login page
+│   │   ├── NotesPage.tsx         # Saved transcripts viewer with AI summary
+│   │   ├── AccentDropdown.tsx    # Accent/gender selector
+│   │   ├── AudioModeToggle.tsx   # Headphones/Speakers mode toggle
+│   │   ├── Button.tsx            # Reusable button
+│   │   └── Header.tsx            # App header
+│   ├── context/
+│   │   └── AuthContext.tsx       # Firebase auth state
+│   ├── firebase/
+│   │   └── firebase.ts           # Firebase config
+│   ├── hooks/
+│   │   ├── useAuth.ts            # Auth hook
+│   │   ├── useTranscripts.ts     # Firestore operations
+│   │   ├── useSpeechToText.ts    # Speechmatics STT integration
+│   │   └── useTextToSpeech.ts    # Azure TTS integration
+│   ├── utils/
+│   │   ├── auth.ts               # Auth helpers
+│   │   └── deepseek.ts           # AI summary integration
+│   └── App.tsx                   # Main app component
+├── public/
+│   └── audio-processor.js        # Audio worklet for processing
+├── Dockerfile                    # Production image
+├── Dockerfile.dev                # Development image
+├── docker-compose.yml            # Docker orchestration
+└── package.json                  # Dependencies
 ```
 
-## Quick Start
+## How It Works
 
-### Full Stack Development
+1. **Audio Capture**: Browser captures audio at 16kHz using Web Audio API
+2. **Processing**: Audio is chunked into 20ms frames by an AudioWorklet
+3. **Transcription**: Frames stream to Speechmatics WebSocket API (enhanced mode, 3s max delay), which returns transcripts with speaker labels
+4. **Speaker Voice Assignment**: Each new speaker gets assigned a unique voice from the selected accent/gender pool (rotates through 5 available voices)
+5. **Sentence Detection**: Words buffer until punctuation (`.`, `!`, `?`) is detected
+6. **Synthesis**: Complete sentences are sent to Azure TTS with the speaker's assigned voice (non-blocking)
+7. **Playback**: Synthesized audio plays through a separate AudioContext to prevent interference
 
-To run both frontend and backend in development mode:
+### Key Implementation Details
 
-```bash
-# Terminal 1 - Start backend
-cd backend
-docker-compose up backend-dev
+**Multi-Speaker Voice Assignment**: When a new speaker is detected, they're automatically assigned the next available voice from the accent pool. For example, with American Male selected: S1 gets "Guy", S2 gets "Davis", S3 gets "Tony", etc. This assignment persists throughout the session, and the UI displays each speaker's voice (e.g., "S1 (Guy):").
 
-# Terminal 2 - Start frontend
-cd frontend
-docker-compose up systemx-dev
-```
+**Speaker Diarization**: Speechmatics identifies up to 5 speakers and returns labels (S1, S2, S3, S4, S5). We merge consecutive utterances from the same speaker and color-code them (S1=blue, S2=green, S3=purple, S4=orange, S5=pink).
 
-- Backend API: `http://localhost:8000`
-- Frontend App: `http://localhost:3000`
-- API Documentation: `http://localhost:8000/docs`
+**Confidence-Based Filtering**: Words with Speechmatics confidence scores below 70% are automatically replaced with `[ __ ]` placeholders. This prevents low-confidence "hallucinated" words from being synthesized and played back, improving overall accuracy.
 
-### Full Stack Production
+**Audio Mode Control**: Users can choose between two audio modes:
+- **Headphones Mode**: Microphone stays active during AI speech playback (ideal when using headphones to prevent echo naturally)
+- **Speakers Mode** (default): Microphone automatically mutes during AI speech playback to prevent acoustic feedback
 
-```bash
-# Terminal 1 - Start backend
-cd backend
-docker-compose --profile production up backend-prod
+**Echo Prevention**: Browser's built-in echo cancellation is disabled to avoid interference with our real-time processing. The Audio Mode toggle provides manual control over microphone behavior during playback.
 
-# Terminal 2 - Start frontend
-cd frontend
-docker-compose --profile production up systemx-prod
-```
+**De-duplication**: We track processed message IDs from Speechmatics and normalize text to prevent speaking the same sentence twice.
 
-- Backend API: `http://localhost:8000`
-- Frontend App: `http://localhost:8080`
+**Non-Blocking TTS**: Speech synthesis runs asynchronously without blocking transcription processing, ensuring smooth real-time performance even during playback.
 
-## Backend Development
+## AI Summary Feature
 
-### Local Development (without Docker)
+The AI Summary feature uses DeepSeek V3 via SiliconFlow API to generate concise summaries of your transcripts. Simply open any saved transcript and click the purple sparkles (✨) icon to generate a paragraph summary.
 
-```bash
-cd backend
-pip install -r requirements.txt
-uvicorn VAD.app:app --reload --host 0.0.0.0 --port 8000
-```
+**Implementation Details:**
+- Automatically truncates transcripts to 12,000 characters to stay within API limits
+- Uses adaptive summary length based on transcript size (wordCount/5, minimum 20 words)
+- Prevents markdown formatting and bullet points for clean paragraph output
 
-Access API at: `http://localhost:8000`
-API Documentation: `http://localhost:8000/docs`
+**Setup:**
+1. Get a free API key from [SiliconFlow](https://cloud.siliconflow.cn/)
+2. Add `VITE_DEEPSEEK_API_KEY` to your `.env` file
+3. Restart the development server
 
-### Docker Development
-
-For development with hot reloading:
-
-```bash
-cd backend
-docker-compose up backend-dev
-```
-
-### Docker Production
-
-```bash
-cd backend
-docker-compose --profile production up backend-prod
-```
-
-## Frontend Development
-
-### Local Development (without Docker)
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-### Docker Development
-
-For development with hot reloading:
-
-```bash
-cd frontend
-# Start development server with Docker
-docker-compose up systemx-dev
-
-# Or build and run manually
-docker build -f Dockerfile.dev -t systemx-dev .
-docker run -p 3000:3000 -v $(pwd):/app -v /app/node_modules systemx-dev
-```
-
-The development server will be available at `http://localhost:3000`
-
-### Docker Production
-
-For production build:
-
-```bash
-# Start production server
-docker-compose --profile production up systemx-prod
-
-# Or build and run manually
-docker build -t systemx-prod .
-docker run -p 8080:80 systemx-prod
-```
-
-The production server will be available at `http://localhost:8080`
-
-## Docker Commands Reference
-
-### Backend Commands
-
-_Run from `backend/` directory_
-
-- `docker-compose up backend-dev` - Start development server
-- `docker-compose --profile production up backend-prod` - Start production server
-- `docker-compose down` - Stop all services
-
-### Frontend Commands
-
-_Run from `frontend/` directory_
-
-- `docker-compose up systemx-dev` - Start development server with hot reloading
-- `docker-compose --profile production up systemx-prod` - Start production server
-- `docker-compose down` - Stop all services
-
-### Manual Docker Commands
-
-```bash
-# Development
-docker build -f Dockerfile.dev -t systemx:dev .
-docker run -p 3000:3000 systemx:dev
-
-# Production
-docker build -t systemx:prod .
-docker run -p 8080:80 systemx:prod
-```
+**Cost:** Very affordable with SiliconFlow's pricing 
 
 ## Available Scripts
 
-### Backend Scripts
-
-_Run from `backend/` directory_
-
-- `uvicorn VAD.app:app --reload` - Start development server
-- `python VAD/client.py` - Run test client
-- `python VAD/getTestData.py` - Generate test data
-
-### Frontend Scripts
-
-_Run from `frontend/` directory_
-
 - `npm run dev` - Start development server
 - `npm run build` - Build for production
-- `npm run preview` - Preview production build locally
+- `npm run preview` - Preview production build
 - `npm run lint` - Run ESLint
 
-## Configuration
+## Browser Support
 
-### Backend Configuration
+Only works on **Chrome** and **Edge** due to AudioWorklet API requirements.
 
-The FastAPI backend uses:
+## Known Limitations
 
-- **Python 3.11** runtime
-- **FastAPI** for async web framework
-- **Uvicorn** as ASGI server
-- **NumPy** for audio processing
-- **Pydantic** for data validation
+- Requires stable internet connection
+- 1-3 second latency due to STT + TTS processing
+- API costs (Speechmatics charges per hour, Azure per character)
+- Transcription quality depends on microphone and background noise
 
-### Frontend Configuration
+## Why No Backend?
 
-The React frontend uses:
+We originally had a Python FastAPI backend for noise reduction and proxying Speechmatics, but removed it to simplify deployment. The Speechmatics and Azure SDKs work great in the browser, eliminating the need for a server. This also means:
+- ✅ Simpler deployment (just static hosting)
+- ✅ No server costs
+- ✅ Faster development
+- ⚠️ API keys in client environment (fine for a demo)
 
-- **Node.js 22** runtime
-- **React 19** with TypeScript
-- **Vite** as build tool and dev server
-- **ESLint** for code linting
+For production, you'd want a thin backend to protect API keys and add usage tracking.
 
-### Vite Configuration
+## Team
 
-The `vite.config.ts` is configured to work with Docker:
+Capstone Project 25T3-9900-H11A-BREAD
 
-- Host set to `0.0.0.0` for container accessibility
-- Polling enabled for file watching in containers
+## License
+
+This project is for academic purposes.
