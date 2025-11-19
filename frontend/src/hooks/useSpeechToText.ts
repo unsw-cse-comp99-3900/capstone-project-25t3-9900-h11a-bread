@@ -281,7 +281,7 @@ export function useSpeechToText(
           sttFirstAudioSentRef.current = performance.now();
           console.log(
             "[STT] First audio frame sent. Startup latency(ms):",
-            sttFirstAudioSentRef.current - sttSessionStartRef.current
+            sttFirstAudioSentRef.current - sttSessionStartRef.current, 
           );
         }
         if (clientRef.current) {
