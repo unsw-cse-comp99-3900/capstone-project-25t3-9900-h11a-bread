@@ -35,7 +35,7 @@ function Header(): React.JSX.Element {
 
   return (
     <>
-      <nav className="fixed top-0 flex items-center justify-between h-32 w-full bg-gray-100 px-10 pr-16">
+      <nav className="fixed top-0 flex items-center justify-between h-auto py-4 w-full bg-gray-100 px-10 pr-16">
         <img
           src={"/logo.png"}
           alt="Brand logo"
