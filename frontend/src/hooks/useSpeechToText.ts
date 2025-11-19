@@ -124,7 +124,7 @@ export function useSpeechToText(preGainRef: RefObject<GainNode | null>  // Accep
         transcription_config: {
           language: "en",
           operating_point: "enhanced",
-          max_delay: 2.0,
+          max_delay: 3.0,
           enable_partials: false,
           diarization: "speaker",
           speaker_diarization_config: {
