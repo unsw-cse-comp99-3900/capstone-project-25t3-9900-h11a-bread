@@ -1,6 +1,14 @@
 import React, { useEffect, useState } from "react";
 import { format } from "date-fns";
-import { Download, ArrowLeft, Edit3, X, Save, Trash2 } from "lucide-react";
+import {
+  Download,
+  ArrowLeft,
+  Edit3,
+  X,
+  Save,
+  Trash2,
+  Sparkles,
+} from "lucide-react";
 import Header from "./Header";
 import { useAuth } from "../hooks/useAuth";
 import { useNavigate } from "react-router-dom";

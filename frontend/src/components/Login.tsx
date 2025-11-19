@@ -9,7 +9,6 @@ import { useAuth } from "../hooks/useAuth";
 const Login = (): React.JSX.Element => {
   const navigate = useNavigate();
   const { user, loginWithGoogle, loginWithFacebook, loading } = useAuth();
-  const { user, loginWithGoogle, loginWithFacebook, loading } = useAuth();
 
   useEffect(() => {
     if (user) {
