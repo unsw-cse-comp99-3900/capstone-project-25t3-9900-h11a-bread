@@ -26,7 +26,7 @@ const AccentDropdown: React.FC<AccentDropdownProps> = ({
   onGenderChange,
 }) => {
   return (
-    <div className="flex flex-col items-start space-y-3 w-full max-w-xs">
+    <div className="flex flex-col items-center space-y-3 w-full max-w-xs">
       <label htmlFor="accent" className="text-gray-700 font-medium text-sm">
         Select Preferred Accent
       </label>
@@ -50,14 +50,14 @@ const AccentDropdown: React.FC<AccentDropdownProps> = ({
       </select>
 
       {/* Gender toggle */}
-      <div className="flex items-center gap-3">
-        <span className="text-gray-700 text-sm">Voice Gender:</span>
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-gray-700 text-xs">Voice Gender:</span>
         <button
           type="button"
           onClick={() => onGenderChange("male")}
-          className={`px-4 py-1 rounded-full text-sm border ${
+          className={`px-3 py-1.5 rounded-full text-xs border font-medium ${
             selectedGender === "male"
-              ? "bg-blue-500 text-white border-blue-500"
+              ? " text-white border-[#77A4F7] bg-[#77A4F7]"
               : "bg-white text-gray-700 border-gray-300"
           }`}
         >
@@ -66,9 +66,9 @@ const AccentDropdown: React.FC<AccentDropdownProps> = ({
         <button
           type="button"
           onClick={() => onGenderChange("female")}
-          className={`px-4 py-1 rounded-full text-sm border ${
+          className={`px-3 py-1.5 rounded-full text-xs border font-medium ${
             selectedGender === "female"
-              ? "bg-pink-500 text-white border-pink-500"
+              ? "text-white border-[#77A4F7] bg-[#77A4F7]"
               : "bg-white text-gray-700 border-gray-300"
           }`}
         >

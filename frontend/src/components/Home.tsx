@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect} from "react";
 import Header from "./Header";
 import AccentDropdown from "./AccentDropdown";
 import AudioModeToggle from "./AudioModeToggle";
@@ -21,49 +21,55 @@ const Home: React.FC = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [hasStarted, setHasStarted] = useState(false);
   const [error, setError] = useState("");
-  
-  /** Audio mode for controlling mic behavior during TTS playback */
+
+  //Audio mode for controlling mic behavior during TTS playback 
   const [audioMode, setAudioMode] = useState<AudioMode>("speakers");
 
-  /** Transcript (single speaker run) */
+  //handle transcript
   const [lines, setLines] = useState<Array<{ speaker: string; text: string }>>(
     []
   );
+  const transcriptRef = useRef<HTMLDivElement | null>(null);
 
-  /** Selection */
+  //handle selection
   const [selectedAccent, setSelectedAccent] = useState<AccentKey | "">("");
   const [selectedGender, setSelectedGender] = useState<GenderKey>("male");
 
-  /** Microphone gain control reference - used by TTS to mute/unmute mic */
+  //handle microphone gain control reference - used by TTS to mute/unmute mic
   const preGainRef = useRef<GainNode | null>(null);
 
-  /** ENV */
-  const API_KEY = import.meta.env.VITE_SPEECHMATICS_API_KEY as string | undefined;
+  // effect hook to make sure the newest line always show at the bottom
+  useEffect(() => {
+    if (!transcriptRef.current) return;
+    const el = transcriptRef.current;
+    el.scrollTop = el.scrollHeight;
+  }, [lines]);
+
+  // read environment fpr stt and tts
+  const API_KEY = import.meta.env.VITE_SPEECHMATICS_API_KEY as
+    | string
+    | undefined;
   const AZURE_REGION = import.meta.env.VITE_AZURE_REGION as string | undefined;
-  const AZURE_KEY = import.meta.env.VITE_AZURE_SPEECH_API_KEY as string | undefined;
+  const AZURE_KEY = import.meta.env.VITE_AZURE_SPEECH_API_KEY as
+    | string
+    | undefined;
 
   /** STT Hook */
-  const { startRecording: startSTT, stopRecording: stopSTT } = useSpeechToText(preGainRef);
+  const { startRecording: startSTT, stopRecording: stopSTT } =
+    useSpeechToText(preGainRef);
 
   /** TTS Hook */
-  const {
-    handleFinalChunk,
-    flushBuffer,
-    resetTTS,
-  } = useTextToSpeech(
+  const { handleFinalChunk, flushBuffer, resetTTS } = useTextToSpeech(
     selectedAccent,
     selectedGender,
     AZURE_KEY,
     AZURE_REGION,
-    audioMode,      // Pass current audio mode
-    preGainRef      // Pass mic gain control reference
+    audioMode, // Pass current audio mode
+    preGainRef // Pass mic gain control reference
   );
 
   /** Handle transcript received from STT */
-  const handleTranscriptReceived = async (
-    piece: string,
-    speaker: string,
-  ) => {
+  const handleTranscriptReceived = async (piece: string, speaker: string) => {
     // Append to transcript with speaker diarization
     setLines((prev) => {
       if (prev.length) {
@@ -93,7 +99,7 @@ const Home: React.FC = () => {
     setHasStarted(true);
     setLines([]);
     resetTTS();
-    
+
     await startSTT(
       API_KEY,
       handleTranscriptReceived,
@@ -117,7 +123,9 @@ const Home: React.FC = () => {
     if (isRecording) {
       stopRecording();
       // Save transcript to Firebase when stopping
-      const combinedTranscript = lines.map((l) => `${l.speaker}: ${l.text}`).join("\n");
+      const combinedTranscript = lines
+        .map((l) => `${l.speaker}: ${l.text}`)
+        .join("\n");
       if (combinedTranscript.trim()) {
         addTranscript(combinedTranscript);
       }
@@ -127,7 +135,9 @@ const Home: React.FC = () => {
   };
 
   const handleDownload = () => {
-    const combinedTranscript = lines.map((l) => `${l.speaker}: ${l.text}`).join("\n");
+    const combinedTranscript = lines
+      .map((l) => `${l.speaker}: ${l.text}`)
+      .join("\n");
     const blob = new Blob([combinedTranscript], {
       type: "text/plain",
     });
@@ -142,17 +152,9 @@ const Home: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center">
       <Header />
-
-      <main className="p-32 flex flex-col items-center justify-center gap-4">
-        {/* Audio Mode Toggle - controls whether mic is muted during TTS */}
-        <AudioModeToggle
-          selectedMode={audioMode}
-          onModeChange={setAudioMode}
-          disabled={isRecording}  // Disable switching during recording
-        />
-
+      <main className="pt-20 flex flex-col items-center justify-center gap-4">
         <div className="flex justify-center items-center">
-          <div className="bg-white rounded-2xl shadow-md p-10 w-[320px] h-[580px] flex flex-col items-center justify-center">
+          <div className="bg-white rounded-2xl shadow-md p-10 w-[320px] h-[520px] md:h-[580px] flex flex-col items-center justify-center">
             <AccentDropdown
               selectedAccent={selectedAccent}
               selectedGender={selectedGender}
@@ -166,15 +168,15 @@ const Home: React.FC = () => {
               }}
             />
 
-            <div className="h-full">
+            <div className="h-full flex flex-col gap-8 md:gap-20 justify-end items-center">
               <button
                 onClick={handleButtonClick}
                 disabled={isLoading || !selectedAccent}
-                className={`relative w-40 h-40 rounded-full text-white text-2xl font-semibold shadow-lg transition-all mt-30
+                className={`relative w-40 h-40 rounded-full text-white text-2xl font-semibold shadow-lg transition-all
                   ${
                     isLoading || !selectedAccent
                       ? "bg-gray-400 cursor-not-allowed"
-                      : "bg-[#77A4F7] hover:bg-blue-400"
+                      : "bg-[#77A4F7] hover:bg-blue-500"
                   }`}
                 title={!selectedAccent ? "Select accent first" : ""}
               >
@@ -223,6 +225,12 @@ const Home: React.FC = () => {
     `}
                 </style>
               </button>
+              {/* Audio Mode Toggle - controls whether mic is muted during TTS */}
+              <AudioModeToggle
+                selectedMode={audioMode}
+                onModeChange={setAudioMode}
+                disabled={isRecording} // Disable switching during recording
+              />
             </div>
           </div>
 
@@ -230,9 +238,14 @@ const Home: React.FC = () => {
             <div className="w-[500px] h-[580px] mt-[52px] flex flex-col overflow-hidden justify-between">
               <div>
                 <div className="pb-2 px-10">
-                  <p className="text-gray-700 text-lg font-semibold">Transcript</p>
+                  <p className="text-gray-700 text-lg font-semibold">
+                    Transcript
+                  </p>
                 </div>
-                <div className="h-[420px] overflow-y-auto px-10 leading-relaxed">
+                <div
+                  ref={transcriptRef}
+                  className="h-[420px] overflow-y-auto px-10 leading-relaxed"
+                >
                   {lines.length === 0 ? (
                     <p className="text-gray-500">…listening</p>
                   ) : (
@@ -244,8 +257,9 @@ const Home: React.FC = () => {
                         S3: "text-purple-700",
                         S4: "text-orange-700",
                       };
-                      const speakerColor = speakerColors[line.speaker] || "text-gray-700";
-                      
+                      const speakerColor =
+                        speakerColors[line.speaker] || "text-gray-700";
+
                       return (
                         <div key={idx} className="mb-3">
                           <span className={`font-semibold ${speakerColor}`}>
