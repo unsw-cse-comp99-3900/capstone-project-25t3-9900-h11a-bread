@@ -81,7 +81,10 @@ export function useSpeechToText(preGainRef: RefObject<GainNode | null>  // Accep
             if (!piece) continue;
 
             const speaker = alternative.speaker || "S1";
-            const resultId = `${r.start_time || 0}-${r.end_time || 0}-${speaker}-${piece}`;
+
+            // Round timestamps to 100ms buckets to reduce duplicate processing from retransmissions
+            const timeKey = Math.floor((r.start_time || 0) * 10) / 10;
+            const resultId = `${timeKey}-${speaker}-${piece.toLowerCase()}`;
 
             if (processedFinalIds.current.has(resultId)) {
               continue;
@@ -121,11 +124,12 @@ export function useSpeechToText(preGainRef: RefObject<GainNode | null>  // Accep
         transcription_config: {
           language: "en",
           operating_point: "enhanced",
-          max_delay: 3.0,
+          max_delay: 2.0,
           enable_partials: false,
           diarization: "speaker",
           speaker_diarization_config: {
             max_speakers: 5,
+            speaker_sensitivity: 0.7,
           },
           transcript_filtering_config: { remove_disfluencies: true },
         },
