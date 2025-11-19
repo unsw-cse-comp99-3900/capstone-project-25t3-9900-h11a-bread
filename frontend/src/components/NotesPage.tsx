@@ -302,36 +302,34 @@ const NotesPage: React.FC = () => {
     if (user) fetchTranscripts();
   }, [user]);
 
-  const itemsPerPage = 5;
+  const itemsPerPage = 7;
   const [currentPage, setCurrentPage] = useState(1);
-
-  const sortedTranscripts = [...transcripts].sort(
-    (a, b) =>
-      new Date(b.recordedAt).getTime() - new Date(a.recordedAt).getTime()
-  );
-
-  const totalPages = Math.ceil(sortedTranscripts.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
   const [reverseOrder, setReverseOrder] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
 
-  let printTranscript = transcripts.filter((t) =>
+  // 1. Filter by search
+  const filteredTranscripts = transcripts.filter((t) =>
     t.notesName.toLowerCase().includes(searchTerm.toLowerCase())
   );
-  if (reverseOrder) {
-    printTranscript = [...printTranscript].reverse();
-  }
-  const paginatedNotes = printTranscript.slice(
+
+  // 2. Sort by date, then apply direction
+  const sortedFilteredTranscripts = [...filteredTranscripts].sort((a, b) => {
+    const aTime = new Date(a.recordedAt).getTime();
+    const bTime = new Date(b.recordedAt).getTime();
+    return reverseOrder ? aTime - bTime : bTime - aTime; // false = Newest → Oldest
+  });
+
+  // 3. Pagination based on filtered+sorted list
+  const totalPages =
+    Math.ceil(sortedFilteredTranscripts.length / itemsPerPage) || 1;
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedNotes = sortedFilteredTranscripts.slice(
     startIndex,
     startIndex + itemsPerPage
   );
 
-  const groupedNotes = groupNotesByDate(
-    paginatedNotes.map((n) => ({
-      ...n,
-      createdAt: n.recordedAt,
-    }))
-  );
+  // 4. Group notes by date
+  const groupedNotes = groupNotesByDate(paginatedNotes);
 
   const [selectedNote, setSelectedNote] = useState<Note | null>(null);
 
@@ -370,7 +368,10 @@ const NotesPage: React.FC = () => {
             <div className="flex items-center gap-3">
               {/* Sort Toggle */}
               <button
-                onClick={() => setReverseOrder((prev) => !prev)}
+                onClick={() => {
+                  setReverseOrder((prev) => !prev);
+                  setCurrentPage(1);
+                }}
                 className="px-3 py-1 text-xs rounded-lg border border-gray-300 bg-white hover:bg-gray-100 shadow-sm transition"
               >
                 {reverseOrder ? "Oldest → Newest" : "Newest → Oldest"}
@@ -400,7 +401,7 @@ const NotesPage: React.FC = () => {
                 No transcripts found.
               </div>
             ) : (
-              <div className="space-y-6">
+              <div className="h-full flex flex-col gap-2">
                 {Object.entries(groupedNotes).map(([date, notes]) => (
                   <div key={date}>
                     <h3 className="text-gray-600 font-semibold mb-2">{date}</h3>
@@ -442,7 +443,7 @@ const NotesPage: React.FC = () => {
 
             {/* Pagination */}
             {totalPages != 0 && (
-              <div className="flex justify-center items-center gap-4 mt-8">
+              <div className="flex justify-center items-center gap-4">
                 <button
                   className="px-3 py-1 rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300 disabled:opacity-40 text-xs"
                   disabled={currentPage === 1}
