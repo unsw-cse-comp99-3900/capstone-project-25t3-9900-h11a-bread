@@ -8,6 +8,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useSpeechToText } from "../hooks/useSpeechToText";
 import { useTextToSpeech } from "../hooks/useTextToSpeech";
 import type { AccentKey, GenderKey } from "../utils/voiceMap";
+import { formatPunctuationSpacing } from "../utils/textFormatter";
 
 type AudioMode = "headphones" | "speakers";
 
@@ -87,16 +88,16 @@ const Home: React.FC = () => {
         if (last.speaker === speaker) {
           const merged = {
             speaker,
-            text: `${last.text} ${piece}`.replace(/\s+/g, " ").trim(),
+            text: formatPunctuationSpacing(`${last.text} ${piece}`),
           };
           const clone = [...prev];
           clone[clone.length - 1] = merged;
           return clone;
         }
         // Different speaker, add new line
-        return [...prev, { speaker, text: piece.trim() }];
+        return [...prev, { speaker, text: formatPunctuationSpacing(piece) }];
       }
-      return [{ speaker, text: piece.trim() }];
+      return [{ speaker, text: formatPunctuationSpacing(piece) }];
     });
 
     // Handle TTS
