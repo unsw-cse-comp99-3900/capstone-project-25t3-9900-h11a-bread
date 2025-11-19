@@ -48,7 +48,7 @@ const AudioModeToggle: React.FC<AudioModeToggleProps> = ({
       </div>
 
       {/* Description Text */}
-      <p className="text-[11px] text-gray-500 text-center">
+      <p className="text-[11px] text-gray-500 text-center h-10">
         {selectedMode === "headphones"
           ? "Microphone stays active during playback"
           : "Microphone mutes during playback to prevent echo"}
