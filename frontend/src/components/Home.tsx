@@ -32,7 +32,9 @@ const Home: React.FC = () => {
   const transcriptRef = useRef<HTMLDivElement | null>(null);
 
   //handle selection
-  const [selectedAccent, setSelectedAccent] = useState<AccentKey | "">("");
+  const [selectedAccent, setSelectedAccent] = useState<AccentKey | "">(
+    "American"
+  );
   const [selectedGender, setSelectedGender] = useState<GenderKey>("male");
 
   //handle microphone gain control reference - used by TTS to mute/unmute mic
