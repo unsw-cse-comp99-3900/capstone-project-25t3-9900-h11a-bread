@@ -26,9 +26,8 @@ export function useTextToSpeech(
   const speakerVoiceMap = useRef<Record<string, string>>({});
   const voiceIndexRef = useRef<number>(0);
 
-  /** Sentence buffer */
-  const bufferRef = useRef<string>("");
-  const ttsBusyRef = useRef(false);
+  /** Sentence buffer per-speaker*/
+  const bufferRef = useRef<Record<string, string>>({});
 
   const normalize = (s: string) =>
     s.toLowerCase().replace(/\s+/g, " ").replace(/[^\S\r\n]/g, " ").trim();
@@ -119,21 +118,28 @@ export function useTextToSpeech(
         return;
     }
 
-    // Serialize TTS calls
-    while (ttsBusyRef.current) await new Promise((r) => setTimeout(r, 5));
-    ttsBusyRef.current = true;
+    // Check for substring matches (catches fragmented duplicates)
+    if (recentSetRef.current.some(prev =>
+      norm.includes(prev) || prev.includes(norm)
+    )) {
+      console.log(`Filtered fragment duplicate: "${cleanedSentence}"`);
+      return;
+    }
+
+    // Non-blocking TTS synthesis - audioQueue handles ordering
+    const voice = assignVoiceForSpeaker(speaker);
+    if (!voice) return;
+
+    // Update dedup state immediately (before async TTS completes)
+    lastUtteranceRef.current = norm;
+    recentSetRef.current = [...recentSetRef.current.slice(-4), norm];
+
+    // Send cleaned text to Azure TTS (no [ __ ] spoken)
     try {
-        const voice = assignVoiceForSpeaker(speaker);
-        if (!voice) return;
-
-        // Send cleaned text to Azure TTS (no [ __ ] spoken)
-        const buf = await synthToBuffer(cleanedSentence, voice);
-        setAudioQueue((q) => [...q, buf]);
-
-        lastUtteranceRef.current = norm;
-        recentSetRef.current = [...recentSetRef.current.slice(-4), norm];
-    } finally {
-        ttsBusyRef.current = false;
+      const buf = await synthToBuffer(cleanedSentence, voice);
+      setAudioQueue((q) => [...q, buf]);
+    } catch (err) {
+      console.error("TTS synthesis failed:", err);
     }
   }
 
@@ -205,11 +211,16 @@ export function useTextToSpeech(
 
   /** Handle final chunk and extract sentences */
   async function handleFinalChunk(text: string, speaker: string) {
-    bufferRef.current = (bufferRef.current + " " + text).trim();
+    // Initialize speaker buffer if doesn't exist
+    if (!bufferRef.current[speaker]) {
+      bufferRef.current[speaker] = "";
+    }
+
+    bufferRef.current[speaker] = (bufferRef.current[speaker] + " " + text).trim();
 
     if (/[.!?]$/.test(text)) {
-      const tmp = bufferRef.current;
-      bufferRef.current = "";
+      const tmp = bufferRef.current[speaker];
+      bufferRef.current[speaker] = "";
 
       const re = /([^.!?]+[.!?])\s*/g;
       let lastEnd = 0;
@@ -230,18 +241,18 @@ export function useTextToSpeech(
 
       const remaining = tmp.slice(lastEnd).trim();
       if (remaining) {
-        bufferRef.current = remaining;
+        bufferRef.current[speaker] = remaining;
       }
     }
   }
 
-  /** Flush remaining buffer */
+  /** Flush remaining buffer for a specific speaker */
   async function flushBuffer(speaker: string) {
-    const tail = bufferRef.current.trim();
+    const tail = (bufferRef.current[speaker] || "").trim();
     if (tail) {
       await speakSentence(tail, speaker);
     }
-    bufferRef.current = "";
+    bufferRef.current[speaker] = "";
   }
 
   /** Reset TTS state */
@@ -250,7 +261,7 @@ export function useTextToSpeech(
     recentSetRef.current = [];
     speakerVoiceMap.current = {};
     voiceIndexRef.current = 0;
-    bufferRef.current = "";
+    bufferRef.current = {};
     setAudioQueue([]);
   }
 
