@@ -1,0 +1,76 @@
+so you don't type, so when you don't type, it
+can decrease chance of errors.
+And you don't need to be expert in programming.
+If you're not a professional programmer, definitely Blueprint will be
+easier for you.
+definitely you need to know OOP, object oriented programming.
+You need to be familiar with the principles of programming,
+but the knowledge of programming that you need to have
+is not, as, I mean it's not, it's
+not as necessary as C++,  definitely you can
+have.
+You can be in intermediate level, but for C++ in
+unreal you should be really expert.
+Regarding disadvantages of blueprints.
+in older versions of Blueprint before version 5, it
+was not as powerful as C++.
+You couldn't do some optimizations.
+You couldn't, you had some limitations, but from Unreal
+Engine version 5, it is almost around 95% equal to.
+C++, so it has the necessary power that you need
+to develop your application.
+And when you use C++ you have more freedom because
+you write everything yourself so you are not limited to
+the nodes and the other point is that if you
+are not good in node-based programming, if you don't consider
+object-oriented principles in your code, it can make understanding
+your code and interpretation of the nodes difficult for the
+people who want to debug or check your code.
+At the end of the day, you will have many
+nodes, they are connected with each other, and they are
+not understandable for yourself and for other people, I mean,
+for the other members of your team.
+To check your code, but based on the concepts
+that I will teach you in the course, you will
+learn how to group them, how to make functions, classes,
+so that you can make a tidy code which is
+understandable for yourself and the other members of the team
+regarding advantages and disadvantages of C++.
+first of all, since you're familiar with C++, you
+don't need to learn a new language.
+And you've already learned it from the other courses
+so you know the syntax, you know the overall structure,
+ and.
+In theory C++ is faster, but as I said, in
+theory, but in practice, most of the times it doesn't
+work properly and you need to restart Unreal Engine a
+couple of times, but Blueprint has a better integration
+with Unreal Engine for C++ you should use Visual Studio.NET
+which is another application.
+And it should have a connection between, I mean there
+should be a connection between Unreal Engine and Visual Studio,
+and sometimes it makes your unreal Engine slow, but Blueprint
+is integrated into the heart of Unreal Engine, so it's
+not a separate application.
+and, regarding disadvantages, it's not as safe
+as, it's not as safe as Blueprints because
+in Blueprint, you, you're working with nodes and those
+nodes have a specific settings, but in unreal and sorry
+in C++ since you write everything yourself, there is a
+higher chance of errors.
+Here you can see the interface of Unreal Engine.
+This part is called your view port or your scene
+area.
+You make your application here, for example, here I added
+a table and two chairs, and we have a floor
+and a sky.
+So in this part you can see the environment that
+you are working on.
+This section is used to add new elements to your
+application.
+For example, if you wanna add lighting, if you wanna
+add, visual effects, if you wanna add geometry shapes,
+you can add all of them through this section.
+If you can't see this section here, you should click
+this button.
+And you can get all these features from this button here.
