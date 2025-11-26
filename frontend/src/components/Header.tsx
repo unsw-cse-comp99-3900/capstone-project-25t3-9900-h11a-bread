@@ -14,6 +14,7 @@ function Header(): React.JSX.Element {
   const handleLogout = async () => {
     try {
       await logout();
+      toggle();
       navigate("/");
     } catch (error) {
       console.error("Logout failed:", error);
