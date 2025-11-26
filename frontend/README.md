@@ -14,6 +14,8 @@ React application built with Vite and TypeScript for real-time accent translatio
 - **Nginx** for production serving
 - **ESLint** for code quality
 
+Tips：To achieve the best result and 95+% accuracy rate, please select `headset mode` with real-time conversation. Speaker mode is built only for demonstration to larger audience.
+
 ## Quick Start
 
 ### Development (with hot reloading):
@@ -45,6 +47,7 @@ npm run dev
 - `npm run build` - Build for production
 - `npm run preview` - Preview production build locally
 - `npm run lint` - Run ESLint
+- `npm test` - Run vitetest to test front-end functionalities
 
 ## Docker Commands
 
@@ -103,6 +106,17 @@ The `vite.config.ts` is configured to work with Docker:
 
 - Host set to `0.0.0.0` for container accessibility
 - Polling enabled for file watching in containers
+
+### Testing
+
+Test files are under `frontend/src/tests`
+There are 9 tests to test the front-end behaviors of the website including:
+
+- **NotesPage** test transcripts display, sorting, loading, download in `text` format, grouping by data, AI summery generation, and search by title
+- **Header** buttons navigation, user authentication, profile popup toggle
+- **LoginPage** Google and facebook authentication redirection, responsiveness
+
+Test them by running `npm test` in terminal in '/frontend'
 
 ### Docker Configuration
 
