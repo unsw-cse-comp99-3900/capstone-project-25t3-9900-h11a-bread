@@ -24,6 +24,8 @@ The application is entirely client-side, with the React frontend communicating d
 - **Audio mode toggle** - Switch between Headphones mode (mic stays active) and Speakers mode (mic mutes during playback)
 - **AI Summary** - Generate intelligent summaries of your transcripts using DeepSeek V3 via SiliconFlow API
 
+🙌🏻Tips：To achieve the best result and 95+% accuracy rate, please select `headset mode` with real-time conversation. Speaker mode is built only for demonstration to larger audience.
+
 ## Tech Stack
 
 - **Frontend**: React 19.1.1 + TypeScript 5.8.3 + Vite 7.1.7
@@ -32,15 +34,16 @@ The application is entirely client-side, with the React frontend communicating d
 - **Text-to-Speech**: Azure Speech SDK 1.46.0
 - **Backend Services**: Firebase 12.3.0 (Auth + Firestore)
 - **Routing**: React Router 7.9.3
+- **Testing** Vitest 2.1.8
 
 ## Quick Start
 
 ### Prerequisites
 
 - Node.js 22+
-- A Speechmatics API key
-- An Azure Cognitive Services API key
-- Firebase project credentials
+- [A Speechmatics API key](https://docs.speechmatics.com/api-ref)
+- An Azure Cognitive Services API key [Guidance here](https://docs.azure.cn/en-us/ai-services/multi-service-resource)
+- Firebase project credentials [Check Firebase Authentication here](https://firebase.google.com/products/auth)
 
 ### Setup
 
@@ -67,7 +70,6 @@ The application is entirely client-side, with the React frontend communicating d
    ```
    VITE_SPEECHMATICS_API_KEY=your_speechmatics_key
    VITE_AZURE_SPEECH_API_KEY=your_azure_key
-   VITE_AZURE_REGION=eastus
    VITE_FIREBASE_API_KEY=your_firebase_key
    VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
    VITE_FIREBASE_PROJECT_ID=your_project_id
@@ -76,7 +78,7 @@ The application is entirely client-side, with the React frontend communicating d
    VITE_FIREBASE_APP_ID=your_app_id
    VITE_FIREBASE_MEASUREMENT_ID=your_measurement_id
    VITE_DEEPSEEK_API_KEY=your_deepseek_key  # Optional, for AI Summary feature
-   VITE_AZURE_REGION=eastus  # Azure region for TTS service
+   VITE_AZURE_REGION=your_azure_region  # Azure region for TTS service
    ```
 
 4. **Run the development server**
@@ -128,6 +130,11 @@ frontend/
 │   │   ├── useTranscripts.ts     # Firestore operations
 │   │   ├── useSpeechToText.ts    # Speechmatics STT integration
 │   │   └── useTextToSpeech.ts    # Azure TTS integration
+│   ├── tests/ 
+│   │   ├── setup.ts              # Vitetest config
+│   │   ├── Login.test.tsx        # Front-end test for login function
+│   │   ├── NotesPage.test.tsx    # Front-end test for transcript behaviors
+│   │   └── Header.test.tsx       # Front-end test for header behaviors
 │   ├── utils/
 │   │   ├── auth.ts               # Auth helpers
 │   │   └── deepseek.ts           # AI summary integration
@@ -190,10 +197,22 @@ The AI Summary feature uses DeepSeek V3 via SiliconFlow API to generate concise 
 - `npm run build` - Build for production
 - `npm run preview` - Preview production build
 - `npm run lint` - Run ESLint
+- `npm test` - Run vitetest to test front-end functionalities
 
 ## Browser Support
 
 Only works on **Chrome** and **Edge** due to AudioWorklet API requirements.
+
+### Testing
+
+Test files are under `frontend/src/tests`
+There are 9 tests to test the front-end behaviors of the website including:
+
+- **NotesPage** test transcripts display, sorting, loading, download in `text` format, grouping by data, AI summery generation, and search by title
+- **Header** buttons navigation, user authentication, profile popup toggle
+- **LoginPage** Google and facebook authentication redirection, responsiveness
+
+Test them by running `npm test` in terminal in '/frontend'
 
 ## Known Limitations
 
