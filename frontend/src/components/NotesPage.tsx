@@ -64,7 +64,7 @@ interface NoteDetailProps {
   deleteTranscript: (id: string) => Promise<void>;
 }
 
-const NoteDetail: React.FC<NoteDetailProps> = ({
+export const NoteDetail: React.FC<NoteDetailProps> = ({
   note,
   onBack,
   updateTranscript,
